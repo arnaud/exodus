@@ -54,8 +54,8 @@ One click → AWS ECS Fargate + ALB + Cloudflare HTTPS
 ## Project structure
 
 ```
-src/            → Frontend SPA (single index.html)
-work/aws/       → Lambda handler + infrastructure scripts
+src/front/      → Frontend SPA (single index.html)
+src/aws/        → Lambda handler + infrastructure scripts
 docs/           → Project docs, design notes
 .github/        → CI/CD (GitHub Pages deploy)
 ```
@@ -69,10 +69,10 @@ The frontend is a single HTML file with inline React — no build step.
 cd src && python3 -m http.server 8000
 
 # Update Lambda
-cd work/aws && ./update-lambda.sh
+cd src/aws && ./update-lambda.sh
 
 # Provision infrastructure (idempotent)
-cd work/aws && ./setup.sh
+cd src/aws && ./setup.sh
 ```
 
 ## License
