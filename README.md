@@ -1,54 +1,55 @@
 # ⏏ Exodus
 
-> Eject from SaaS. An AI agent that finds open-source alternatives and deploys your self-hosted stack in 2′.
+> Eject from SaaS. An AI agent that matches open-source alternatives to the tools you pay for — and deploys them to your cloud in 2 minutes.
 
-[![Deploy](https://img.shields.io/badge/live-exodus.stack.lol-blue)](https://exodus.stack.lol)
+[![Live](https://img.shields.io/badge/live-exodus.stack.lol-blue)](https://exodus.stack.lol)
+[![Built at](https://img.shields.io/badge/built%20at-SuperAI%20NEXT%20'26-orange)](https://superai.com)
 
 ---
 
 ## What it does
 
-Tell Exodus which SaaS tools you pay for. It matches each one to the best open-source alternative from a catalog of 200+ Docker-ready packages, then deploys the whole stack to AWS with a single click.
+Type the SaaS tools your team pays for. Exodus matches each one to the best open-source alternative from a catalog of 200+ Docker-ready packages — you approve every choice — then deploys your entire stack to AWS with one click.
 
 **Input →** _"We use Notion, Slack, and Jira"_
-**Output →** Self-hosted Outline, Mattermost, and Plane — live at `*.stack.lol` in under two minutes.
+**Output →** Outline, Mattermost, and Plane — live at `*.stack.lol` in under two minutes.
 
 ## How it works
 
 ```
-You type what you pay for
+Name the SaaS you pay for
         ↓
-Agent matches open-source alternatives (you approve every choice)
+Agent picks the best open-source replacement (you approve or override)
         ↓
-One click → AWS ECS Fargate + ALB + Cloudflare HTTPS
+One click → deployed to AWS with HTTPS
         ↓
-*.stack.lol — your stack is live
+*.stack.lol — preview it right from Exodus
 ```
 
 | Step | What happens | Tech |
 |------|-------------|------|
-| **Parse** | Identifies SaaS tools from free-text input | Stack catalog API |
-| **Match** | Finds the top-rated OSS replacement per tool | GitHub stars ranking |
-| **Deploy** | Provisions containers, routing, and TLS | AWS ECS Fargate, ALB, Cloudflare DNS |
+| **Parse** | Recognizes SaaS tools from free-text input | Stack catalog (200+ products) |
+| **Match** | Ranks open-source alternatives by GitHub stars | Auto-select or human-in-the-loop |
+| **Deploy** | Provisions containers, routing, and TLS | AWS ECS Fargate · ALB · Cloudflare |
 
 ## Features
 
-- **Smart matching** — 200+ SaaS → OSS mappings, ranked by GitHub stars
-- **Human-in-the-loop** — auto-selects clear winners, asks you on close calls
-- **One-click cloud deploy** — AWS ECS Fargate with HTTPS subdomains on `stack.lol`
-- **Docker Compose export** — download `compose.yaml` + `.env` and run locally
-- **Live preview** — open deployed services directly from the UI
-- **Data sovereignty** — your tools, your infrastructure, no vendor lock-in
+- **200+ alternatives** — curated SaaS → OSS mappings, ranked by community traction
+- **You stay in control** — auto-selects clear winners, asks you on close calls
+- **Live in two minutes** — one-click deploy to AWS ECS Fargate with HTTPS subdomains
+- **Works offline too** — download `compose.yaml` + `.env` and `docker compose up`
+- **Preview before you commit** — open deployed services directly inside Exodus
+- **Your data, your rules** — self-hosted, no vendor lock-in, no surprise bills
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19 SPA · [PerformativeUI](https://github.com/vorpus/performativeUI) · Tailwind CSS |
-| Hosting | GitHub Pages |
+| Frontend | KISS: React 19 SPA · [PerformativeUI](https://github.com/vorpus/performativeUI) · Tailwind CSS |
+| Hosting | Vercel + GitHub Pages |
 | Backend | AWS Lambda (Node.js 22) · API Gateway HTTP API |
 | Compute | AWS ECS Fargate |
-| Routing | ALB (host-based rules) · Cloudflare DNS (wildcard `*.stack.lol`) |
+| Routing | ALB (host-based rules) · Cloudflare (wildcard HTTPS `*.stack.lol`) |
 | Data | [stack.lol](https://stack.lol) catalog API |
 
 ## Project structure
@@ -57,7 +58,7 @@ One click → AWS ECS Fargate + ALB + Cloudflare HTTPS
 src/front/      → Frontend SPA (single index.html)
 src/aws/        → Lambda handler + infrastructure scripts
 docs/           → Project docs, design notes
-.github/        → CI/CD (GitHub Pages deploy)
+.github/        → CI/CD (Vercel + GitHub Pages)
 ```
 
 ## Development
@@ -66,7 +67,7 @@ The frontend is a single HTML file with inline React — no build step.
 
 ```bash
 # Serve locally
-cd src && python3 -m http.server 8000
+cd src/front && python3 -m http.server 8000
 
 # Update Lambda
 cd src/aws && ./update-lambda.sh
@@ -77,4 +78,4 @@ cd src/aws && ./setup.sh
 
 ## License
 
-Built at [SuperAI NEXT Hackathon '26](https://superai.com), Singapore.
+Built solo at [SuperAI NEXT Hackathon '26](https://superai.com), Singapore.

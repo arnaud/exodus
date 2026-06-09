@@ -69,6 +69,21 @@
         left: -0.15em;
         text-decoration: none;
       }
+
+      @keyframes bubble-in {
+        from {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .pui-bubble {
+        animation: bubble-in 150ms ease-out both;
+      }
     </style>
 
     <!-- Import Map: browser-native module resolution, no bundler -->
@@ -1118,9 +1133,7 @@
                 >
                   {ready && (
                     <p style={{ margin: "0 0 16px" }}>
-                      <GradientText>
-                        <Sparkle static solid glyph="⏏" /> Ready to deploy
-                      </GradientText>
+                      <GradientText>Ready to deploy</GradientText>
                     </p>
                   )}
 
@@ -1333,9 +1346,7 @@
 
                   {allHealthy && (
                     <p style={{ margin: "0 0 16px" }}>
-                      <GradientText>
-                        <Sparkle static solid glyph="⏏" /> Your stack is live
-                      </GradientText>
+                      <GradientText>Your stack is live</GradientText>
                     </p>
                   )}
 
@@ -1481,7 +1492,7 @@
               <div style={{ ...styles.hero, marginBottom: -32 }} id="picker">
                 <div style={styles.heroInner}>
                   <h1 style={styles.h1}>
-                    Stop paying rent on
+                    Eject from
                     <br />
                     <GradientText>
                       <WordRoll
@@ -1533,9 +1544,10 @@
                   </h1>
 
                   <p style={styles.lede}>
-                    Tell Exodus which tools you pay for. The agent finds free,
-                    sovereign <strong>open source alternatives</strong> &amp;
-                    hands you a <strong>ready-to-run stack</strong>.
+                    Tell Exodus which SaaS you pay for. It finds the best{" "}
+                    <strong>open-source alternatives</strong>, and deploys them
+                    to <strong>your own cloud</strong> — live in under two
+                    minutes.
                   </p>
 
                   <HighlightedPrompt
@@ -1590,41 +1602,37 @@
               <div style={styles.center}>
                 <EyebrowPill icon={false}>How it works</EyebrowPill>
                 <h2 style={styles.h2}>
-                  Describe <em>your stack</em>. The agent does the rest.{" "}
-                  <GradientText>You approve every decision.</GradientText>
+                  Three steps.{" "}
+                  <GradientText>You stay in control.</GradientText>
                 </h2>
               </div>
 
               <div style={styles.cardGrid}>
                 <GlassCard breathing glowOnHover data-numbering="1">
-                  <GlassCard.Title>
-                    Tell the agent what you pay for
-                  </GlassCard.Title>
+                  <GlassCard.Title>Name your tools</GlassCard.Title>
                   <GlassCard.Body>
-                    Type the tools your team uses — Notion, Slack, Jira,
-                    Datadog, whatever. The agent identifies each one from a
-                    catalog of {catalog.length}+ SaaS products.
+                    Type the SaaS your team uses — Notion, Slack, Jira,
+                    Datadog, whatever. Exodus recognizes{" "}
+                    {catalog.length || "200"}+ products instantly.
                   </GlassCard.Body>
                   <GlassCard.Link href="#picker">Try it now</GlassCard.Link>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover data-numbering="2">
-                  <GlassCard.Title>
-                    Review & choose alternatives
-                  </GlassCard.Title>
+                  <GlassCard.Title>Pick your replacements</GlassCard.Title>
                   <GlassCard.Body>
-                    The agent recommends the best open-source replacement for
-                    each tool. When facing multiple strong candidates,{" "}
-                    <strong>you pick the winner</strong> — the agent never
-                    decides for you on close calls.
+                    The agent matches each tool to the top-rated open-source
+                    alternative. Clear winner? Auto-selected. Close call?{" "}
+                    <strong>You decide.</strong>
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover data-numbering="3">
-                  <GlassCard.Title>Get your stack</GlassCard.Title>
+                  <GlassCard.Title>Deploy in one click</GlassCard.Title>
                   <GlassCard.Body>
-                    The agent packages everything you need into a ready-to-run
-                    bundle. Download it and launch your tools in minutes.
+                    Your entire stack goes live on AWS with its own HTTPS
+                    subdomain — or download the Docker Compose and run it
+                    yourself.
                   </GlassCard.Body>
                 </GlassCard>
               </div>
@@ -1633,7 +1641,7 @@
             {/* ─── Social proof ─── */}
             <section style={styles.section}>
               <p style={styles.marqueeCaption}>
-                All these tools are intended to be replaced:
+                Replacements for all of these — ready to deploy:
               </p>
               <LogoMarquee
                 pauseOnHover
@@ -1687,62 +1695,61 @@
               <div style={styles.cardGrid}>
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>🔍</GlassCard.Icon>
-                  <GlassCard.Title>Smart alternative matching</GlassCard.Title>
+                  <GlassCard.Title>
+                    {approxStackCount || "200"}+ alternatives
+                  </GlassCard.Title>
                   <GlassCard.Body>
-                    A curated catalog of {approxStackCount || "…"}+ open-source
-                    tools mapped to the SaaS products they replace — ranked by
-                    GitHub stars and community traction.
+                    A curated catalog of open-source tools mapped to the SaaS
+                    they replace — ranked by GitHub stars and battle-tested by
+                    the community.
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>🤖</GlassCard.Icon>
-                  <GlassCard.Title>Human-in-the-loop agent</GlassCard.Title>
+                  <GlassCard.Title>You approve every choice</GlassCard.Title>
                   <GlassCard.Body>
-                    The agent auto-selects when the winner is clear, but
-                    presents you with choices when multiple strong candidates
-                    exist. You always have the final say.
+                    The agent auto-selects clear winners and asks you on close
+                    calls. No black-box decisions — you see every option and
+                    make the final call.
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>☁️</GlassCard.Icon>
-                  <GlassCard.Title>One-click cloud deploy</GlassCard.Title>
+                  <GlassCard.Title>Live in two minutes</GlassCard.Title>
                   <GlassCard.Body>
-                    Deploy your stack to AWS ECS Fargate with a single click.
-                    Each service gets its own HTTPS subdomain on{" "}
-                    <strong>stack.lol</strong> — live in under two minutes.
+                    One click deploys to AWS ECS Fargate. Each service gets its
+                    own HTTPS subdomain — preview it right from this page.
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>🐳</GlassCard.Icon>
-                  <GlassCard.Title>Docker Compose ready</GlassCard.Title>
+                  <GlassCard.Title>Works offline too</GlassCard.Title>
                   <GlassCard.Body>
-                    Every alternative comes with a production-grade{" "}
-                    <code>compose.yaml</code> and <code>.env</code> — download
-                    and run locally with a single <code>docker compose up</code>
-                    .
+                    Every stack comes with a production-grade{" "}
+                    <code>compose.yaml</code> and <code>.env</code>. Download,{" "}
+                    <code>docker compose up</code>, done.
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>🔒</GlassCard.Icon>
-                  <GlassCard.Title>Your data stays yours</GlassCard.Title>
+                  <GlassCard.Title>Your data, your rules</GlassCard.Title>
                   <GlassCard.Body>
-                    Self-hosted means your data never leaves your
-                    infrastructure. No vendor lock-in, no surprise price hikes,
-                    no terms-of-service changes.
+                    Self-hosted means no vendor lock-in, no surprise price
+                    hikes, no terms-of-service changes. Your infrastructure,
+                    your terms.
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>👀</GlassCard.Icon>
-                  <GlassCard.Title>Live preview</GlassCard.Title>
+                  <GlassCard.Title>Preview before you commit</GlassCard.Title>
                   <GlassCard.Body>
-                    Preview your deployed services directly from the Exodus
-                    interface — no context-switching. See your stack running
-                    before you commit.
+                    Open your deployed services directly inside Exodus. See
+                    them running live before you make the switch.
                   </GlassCard.Body>
                 </GlassCard>
               </div>
@@ -1753,8 +1760,8 @@
               <div style={styles.center}>
                 <EyebrowPill icon={false}>Pricing</EyebrowPill>
                 <h2 style={styles.h2}>
-                  Your alternatives are free. Exodus helps you get there.{" "}
-                  <GradientText>It pays for itself in days.</GradientText>
+                  The software is free.{" "}
+                  <GradientText>We handle the rest.</GradientText>
                 </h2>
               </div>
 
@@ -1766,9 +1773,9 @@
                     Compose &amp; run your stack on your own machine, for free.
                   </PricingCard.Blurb>
                   <PricingCard.Features>
-                    <li>Compose your stack with agentic</li>
-                    <li>Download your own Docker stack</li>
-                    <li>Technical setup required</li>
+                    <li>Agentic stack composer</li>
+                    <li>Download Docker Compose + .env</li>
+                    <li>Run on your own machine</li>
                   </PricingCard.Features>
                   <PricingCard.CTA href="#picker">Get started</PricingCard.CTA>
                 </PricingCard>
@@ -1830,9 +1837,9 @@
                 ]}
               />
               <h2 style={styles.h2}>
-                Your tools. Your data.
+                Own your tools.
                 <br />
-                <GradientText>No more monthly fees.</GradientText>
+                <GradientText>Stop renting software.</GradientText>
               </h2>
               <Button variant="glow" size="lg" sparkle as="a" href="#picker">
                 Build my stack — free
@@ -1848,7 +1855,7 @@
                     <Sparkle static solid glyph="⏏" /> Exodus
                   </p>
                   <p style={styles.footerMuted}>
-                    Stop paying rent on software you can own.
+                    Eject from SaaS. Own your stack.
                   </p>
                 </div>
 
