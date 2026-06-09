@@ -196,7 +196,7 @@ if [ "$INTEGRATION_ID" = "None" ] || [ -z "$INTEGRATION_ID" ]; then
     --query "IntegrationId" --output text --region "$REGION")
 fi
 
-for ROUTE in "POST /deploy" "GET /status"; do
+for ROUTE in "POST /deploy" "POST /teardown" "GET /status"; do
   aws apigatewayv2 create-route --api-id "$API_ID" \
     --route-key "$ROUTE" --target "integrations/$INTEGRATION_ID" \
     --region "$REGION" 2>/dev/null || true
@@ -214,6 +214,32 @@ aws lambda add-permission --function-name "$LAMBDA_NAME" \
   --region "$REGION" 2>/dev/null || true
 
 API_URL="https://${API_ID}.execute-api.${REGION}.amazonaws.com"
+
+# 9. EventBridge: scheduled teardown every 15 min
+echo -e "\n[9/9] Sandbox teardown schedule..."
+RULE_NAME="exodus-sandbox-teardown"
+
+aws events put-rule \
+  --name "$RULE_NAME" \
+  --schedule-expression "rate(15 minutes)" \
+  --state ENABLED \
+  --description "Tear down expired Exodus sandbox deployments" \
+  --region "$REGION" 2>/dev/null || true
+
+aws lambda add-permission --function-name "$LAMBDA_NAME" \
+  --statement-id "eventbridge-teardown" \
+  --action lambda:InvokeFunction \
+  --principal events.amazonaws.com \
+  --source-arn "arn:aws:events:${REGION}:${ACCOUNT_ID}:rule/${RULE_NAME}" \
+  --region "$REGION" 2>/dev/null || true
+
+# EventBridge sends a fixed POST /teardown payload
+aws events put-targets \
+  --rule "$RULE_NAME" \
+  --targets "[{\"Id\":\"teardown\",\"Arn\":\"${LAMBDA_ARN}\",\"Input\":\"{\\\"rawPath\\\":\\\"/teardown\\\",\\\"requestContext\\\":{\\\"http\\\":{\\\"method\\\":\\\"POST\\\"}},\\\"body\\\":\\\"{}\\\"}\"}]" \
+  --region "$REGION" 2>/dev/null || true
+
+echo "Teardown scheduled every 15 min"
 
 cat > "$SCRIPT_DIR/config.env" <<EOF
 API_URL=$API_URL

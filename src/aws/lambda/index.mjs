@@ -2,10 +2,13 @@ import { randomBytes } from "node:crypto";
 import {
   ECSClient, RegisterTaskDefinitionCommand, CreateServiceCommand,
   DescribeServicesCommand, ListServicesCommand,
+  UpdateServiceCommand, DeleteServiceCommand, TagResourceCommand,
+  ListTagsForResourceCommand,
 } from "@aws-sdk/client-ecs";
 import {
   ElasticLoadBalancingV2Client, CreateTargetGroupCommand,
-  CreateRuleCommand,
+  CreateRuleCommand, DescribeRulesCommand, DeleteRuleCommand,
+  DeleteTargetGroupCommand, DescribeTargetGroupsCommand,
 } from "@aws-sdk/client-elastic-load-balancing-v2";
 
 const ecs = new ECSClient({});
@@ -21,6 +24,7 @@ const {
   DOMAIN = "stack.lol",
 } = process.env;
 const SUBNETS = SUBNETS_STR?.split(",") || [];
+const SANDBOX_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 
 const headers = {
   "Content-Type": "application/json",
@@ -90,6 +94,7 @@ export const handler = async (event) => {
 
   try {
     if (method === "POST" && path === "/deploy") return await deploy(JSON.parse(event.body));
+    if (method === "POST" && path === "/teardown") return await teardown();
     if (method === "GET" && path === "/status") return await status();
     return respond(404, { error: "Not found" });
   } catch (e) {
@@ -201,12 +206,75 @@ async function deploy({ stacks }) {
         containerPort: port,
       }],
       healthCheckGracePeriodSeconds: 120,
+      tags: [
+        { key: "exodus:expiresAt", value: String(Date.now() + SANDBOX_TTL_MS) },
+        { key: "exodus:slug", value: slug },
+      ],
     }));
 
     results.push({ name: s.name, slug, url: `https://${hostname}`, status: "DEPLOYING" });
   }
 
   return respond(200, { deployments: results });
+}
+
+// --- POST /teardown (called by EventBridge on schedule) ---
+
+async function teardown() {
+  const listed = await ecs.send(new ListServicesCommand({ cluster: CLUSTER }));
+  if (!listed.serviceArns?.length) return respond(200, { torn: 0 });
+
+  const described = await ecs.send(new DescribeServicesCommand({
+    cluster: CLUSTER, services: listed.serviceArns, include: ["TAGS"],
+  }));
+
+  const now = Date.now();
+  const expired = described.services.filter(svc => {
+    if (svc.status !== "ACTIVE") return false;
+    const tag = svc.tags?.find(t => t.key === "exodus:expiresAt");
+    return tag && Number(tag.value) < now;
+  });
+
+  const torn = [];
+  for (const svc of expired) {
+    const slug = svc.tags?.find(t => t.key === "exodus:slug")?.value || svc.serviceName.replace(/^ex-/, "");
+    try {
+      // 1. Scale to 0 and delete service
+      await ecs.send(new UpdateServiceCommand({
+        cluster: CLUSTER, service: svc.serviceArn, desiredCount: 0,
+      }));
+      await ecs.send(new DeleteServiceCommand({
+        cluster: CLUSTER, service: svc.serviceArn, force: true,
+      }));
+
+      // 2. Find and delete ALB target group + listener rule
+      const tgName = svc.serviceName; // "ex-{slug}"
+      try {
+        const tgs = await elbv2.send(new DescribeTargetGroupsCommand({ Names: [tgName] }));
+        const tgArn = tgs.TargetGroups?.[0]?.TargetGroupArn;
+        if (tgArn) {
+          // Find listener rule pointing to this target group
+          const rules = await elbv2.send(new DescribeRulesCommand({ ListenerArn: LISTENER_ARN }));
+          for (const rule of rules.Rules || []) {
+            if (rule.IsDefault) continue;
+            const fwd = rule.Actions?.find(a => a.TargetGroupArn === tgArn);
+            if (fwd) {
+              await elbv2.send(new DeleteRuleCommand({ RuleArn: rule.RuleArn }));
+            }
+          }
+          // Delete target group (may need a short delay for deregistration)
+          try { await elbv2.send(new DeleteTargetGroupCommand({ TargetGroupArn: tgArn })); } catch {}
+        }
+      } catch {}
+
+      torn.push(slug);
+      console.log(`Torn down expired sandbox: ${slug}`);
+    } catch (e) {
+      console.error(`Failed to tear down ${slug}:`, e);
+    }
+  }
+
+  return respond(200, { torn: torn.length, slugs: torn });
 }
 
 // --- GET /status ---

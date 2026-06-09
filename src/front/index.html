@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark" data-theme="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -23,7 +23,7 @@
     />
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 15 70 100'><text y='1em' font-size='100'>⏏</text></svg>"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 10 70 100'><text y='1em' font-size='100'>⏏</text></svg>"
     />
 
     <!-- Tailwind CSS v4 (CDN, no build) -->
@@ -84,6 +84,12 @@
       .pui-bubble {
         animation: bubble-in 150ms ease-out both;
       }
+
+      @keyframes tool-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
     </style>
 
     <!-- Import Map: browser-native module resolution, no bundler -->
@@ -126,7 +132,6 @@
         NodeGraphBackground,
         EyebrowPill,
         GradientText,
-        WordRoll,
         Rotator,
         Prompt,
         PromptHero,
@@ -146,6 +151,8 @@
         Popover,
       } from "performative-ui";
 
+      // (paid-return detection is handled inside the component via popup polling)
+
       // ─── Constants ───────────────────────────────────────────────────────
 
       const STRONG_THRESHOLD = 5000;
@@ -154,6 +161,59 @@
 
       const EXODUS_API =
         "https://d6lzsqpg2b.execute-api.us-west-2.amazonaws.com";
+
+      const STRIPE_PAYMENT_LINK =
+        "https://buy.stripe.com/test_bJe6oH83g7xCaYdbdUew801";
+
+      const SANDBOX_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours in ms
+
+      // ─── Countdown Hook & Badge ──────────────────────────────────────
+
+      function useCountdown(expiresAt) {
+        const [remaining, setRemaining] = useState(() =>
+          expiresAt ? Math.max(0, expiresAt - Date.now()) : null,
+        );
+        useEffect(() => {
+          if (!expiresAt) return;
+          const tick = () => setRemaining(Math.max(0, expiresAt - Date.now()));
+          tick();
+          const id = setInterval(tick, 1000);
+          return () => clearInterval(id);
+        }, [expiresAt]);
+        if (remaining === null) return null;
+        if (remaining <= 0)
+          return { h: 0, m: 0, s: 0, expired: true, label: "Expired" };
+        const h = Math.floor(remaining / 3_600_000);
+        const m = Math.floor((remaining % 3_600_000) / 60_000);
+        const s = Math.floor((remaining % 60_000) / 1000);
+        const label = h > 0 ? `${h}h ${m}m remaining` : `${m}m ${s}s remaining`;
+        return { h, m, s, expired: false, label };
+      }
+
+      function CountdownBadge({ expiresAt }) {
+        const cd = useCountdown(expiresAt);
+        if (!cd) return null;
+        const urgent = !cd.expired && cd.h === 0 && cd.m < 30;
+        return (
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium"
+            style={{
+              background: cd.expired
+                ? "rgba(239,68,68,0.12)"
+                : urgent
+                  ? "rgba(245,158,11,0.12)"
+                  : "rgba(34,197,94,0.10)",
+              color: cd.expired ? "#ef4444" : urgent ? "#f59e0b" : "#22c55e",
+              border: `1px solid ${cd.expired ? "rgba(239,68,68,0.25)" : urgent ? "rgba(245,158,11,0.25)" : "rgba(34,197,94,0.2)"}`,
+            }}
+          >
+            <span style={{ fontSize: "0.7rem" }}>
+              {cd.expired ? "💀" : urgent ? "⏳" : "⏱"}
+            </span>
+            {cd.label}
+          </span>
+        );
+      }
 
       const SAAS_NAMES = {
         "1password": "1Password",
@@ -199,6 +259,41 @@
         "google/gemini-3.5-flash",
       ];
 
+      // ─── Agent Tools ────────────────────────────────────────────────────
+
+      const AGENT_TOOLS = {
+        identify_tools: {
+          label: "Identify tools",
+          icon: "🔍",
+          description: "Parse input and identify SaaS & open-source products",
+        },
+        match_alternative: {
+          label: "Look for alternatives",
+          icon: "📚",
+          description: "Search catalog for open-source replacements",
+        },
+        fetch_compose: {
+          label: "Fetch the compose file",
+          icon: "📦",
+          description: "Fetch Docker Compose config from registry",
+        },
+        parse_image: {
+          label: "Parse image",
+          icon: "🐳",
+          description: "Extract container image from Compose file",
+        },
+        deploy_ecs: {
+          label: "Deploy to AWS ECS",
+          icon: "☁️",
+          description: "Provision service on AWS ECS Fargate",
+        },
+        check_health: {
+          label: "Healthcheck",
+          icon: "💚",
+          description: "Poll deployment health status",
+        },
+      };
+
       // ─── Helpers ─────────────────────────────────────────────────────────
 
       const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -208,6 +303,22 @@
       const saasDisplayName = (slug) =>
         SAAS_NAMES[slug] ??
         slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+      const siIcon = (name) =>
+        `https://esm.sh/simple-icons@16/icons/${name.toLowerCase().replaceAll(" ", "")}.svg`;
+
+      const SiImg = ({ name, className, ...props }) => (
+        <img
+          src={siIcon(name)}
+          alt={`${name} logo`}
+          className={className}
+          style={{ filter: "var(--pui-logo-filter)", ...props.style }}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+          {...props}
+        />
+      );
 
       const downloadFile = (content, filename) => {
         const blob = new Blob([content], { type: "text/plain" });
@@ -286,12 +397,12 @@
 
       // ─── HighlightedPrompt ──────────────────────────────────────────────
 
-      function HighlightedPrompt({ catalog, ...promptProps }) {
+      function HighlightedPrompt({ catalog, stacks, ...promptProps }) {
         const wrapperRef = useRef(null);
 
         useEffect(() => {
           const wrapper = wrapperRef.current;
-          if (!wrapper || catalog.length === 0) return;
+          if (!wrapper || (catalog.length === 0 && stacks.length === 0)) return;
 
           const terms = [];
           const seen = new Set();
@@ -302,6 +413,18 @@
               seen.add(nl);
             }
             const sl = (t.slug ?? "").toLowerCase();
+            if (sl.length >= 2 && !seen.has(sl)) {
+              terms.push(sl);
+              seen.add(sl);
+            }
+          }
+          for (const s of stacks) {
+            const nl = s.name.toLowerCase();
+            if (nl.length >= 2 && !seen.has(nl)) {
+              terms.push(nl);
+              seen.add(nl);
+            }
+            const sl = (s.slug ?? "").toLowerCase();
             if (sl.length >= 2 && !seen.has(sl)) {
               terms.push(sl);
               seen.add(sl);
@@ -455,7 +578,7 @@
             }
             mirror?.remove();
           };
-        }, [catalog]);
+        }, [catalog, stacks]);
 
         return (
           <div ref={wrapperRef} style={{ width: "100%" }}>
@@ -487,6 +610,7 @@
         const [runProgress, setRunProgress] = useState({}); // slug → 'pending'|'running'|'live'|'error'
         const [isRunning, setIsRunning] = useState(false);
         const [isDeploying, setIsDeploying] = useState(false);
+        const [sandboxExpiresAt, setSandboxExpiresAt] = useState(null);
 
         // Refs for async flow
         const convoRef = useRef(null);
@@ -544,6 +668,16 @@
           );
         };
 
+        // ── Match open-source stacks from user text ──
+        const matchOSSTools = (text) => {
+          const lower = text.toLowerCase();
+          return stacks.filter(
+            (s) =>
+              lower.includes(s.name.toLowerCase()) ||
+              lower.includes(s.slug.toLowerCase()),
+          );
+        };
+
         // ── Find alternatives for a SaaS tool ──
         const findAlternatives = (saasSlug) => {
           return stacks
@@ -587,19 +721,16 @@
             ...new Set(Object.values(allSelections).map((s) => s.slug)),
           ];
 
-          // Create recipe immediately — shows thinking while files load
-          const recipeId = addMsg({
-            role: "ai",
-            agent: "Exodus",
-            type: "recipe",
-            thinking: "preparing your stack…",
-            allSelections,
-            files: {},
-          });
-
           const files = {};
 
           for (const slug of slugs) {
+            const fetchToolId = addMsg({
+              type: "tool-use",
+              tool: "fetch_compose",
+              input: slug,
+              thinking: true,
+            });
+
             const base = `${GITHUB_BASE}/${slug}`;
             files[slug] = {};
 
@@ -632,11 +763,27 @@
               }
             }
 
-            updateMsg(recipeId, { files: { ...files } });
+            const parts = [];
+            if (files[slug].compose) parts.push("compose.yaml");
+            if (files[slug].env) parts.push(".env");
+            updateMsg(fetchToolId, {
+              thinking: false,
+              result: parts.length ? parts.join(" + ") : "not found",
+            });
           }
 
           setFetchedFiles(files);
-          updateMsg(recipeId, { thinking: false, files });
+
+          // Show recipe after all fetches complete
+          addMsg({
+            role: "ai",
+            agent: "Exodus",
+            type: "recipe",
+            thinking: false,
+            allSelections,
+            files,
+          });
+
           setPhase("done");
         };
 
@@ -716,6 +863,49 @@
           setIsRunning(false);
         };
 
+        // ── Stripe payment gate (opens in new window, polls for close) ──
+        const handlePayAndDeploy = (allSelections, files) => {
+          const stackCount = new Set(
+            Object.values(allSelections).map((s) => s.slug),
+          ).size;
+
+          // Open Stripe in a new window (stays on same origin)
+          const stripeWin = window.open(
+            `${STRIPE_PAYMENT_LINK}?prefilled_quantity=${stackCount}`,
+            "stripe_checkout",
+            "width=600,height=700,left=200,top=100",
+          );
+
+          // Show waiting state
+          const waitId = addMsg({
+            role: "ai",
+            agent: "Exodus",
+            type: "text",
+            thinking: "waiting for payment…",
+            text: "Complete your payment in the Stripe window. This will continue automatically.",
+          });
+
+          // Poll until the Stripe window is closed
+          const poll = setInterval(() => {
+            if (!stripeWin || stripeWin.closed) {
+              clearInterval(poll);
+              updateMsg(waitId, {
+                thinking: false,
+                text: "**Payment received** ✓ — deploying your stack now…",
+              });
+              addMsg({
+                role: "ai",
+                agent: "Exodus",
+                type: "recipe",
+                thinking: false,
+                allSelections,
+                files,
+              });
+              setTimeout(() => handleCloudDeploy(allSelections, files), 600);
+            }
+          }, 1000);
+        };
+
         // ── Cloud deploy to AWS ──
         const handleCloudDeploy = async (allSelections, files) => {
           setIsDeploying(true);
@@ -723,18 +913,30 @@
             ...new Set(Object.values(allSelections).map((s) => s.slug)),
           ];
 
-          const stackPayload = slugs
-            .map((slug) => {
-              const compose = files[slug]?.compose || "";
-              const image = parseComposeImage(compose);
-              if (!image) return null;
-              return {
-                name: slug,
-                image,
-                port: parseComposePort(compose),
-              };
-            })
-            .filter(Boolean);
+          // Tool: parse_image for each stack
+          const stackPayload = [];
+          for (const slug of slugs) {
+            const parseId = addMsg({
+              type: "tool-use",
+              tool: "parse_image",
+              input: slug,
+              thinking: true,
+            });
+            await delay(250);
+
+            const compose = files[slug]?.compose || "";
+            const image = parseComposeImage(compose);
+            if (!image) {
+              updateMsg(parseId, { thinking: false, result: "no image found" });
+              continue;
+            }
+            const port = parseComposePort(compose);
+            stackPayload.push({ name: slug, image, port });
+            updateMsg(parseId, {
+              thinking: false,
+              result: `${image} :${port}`,
+            });
+          }
 
           if (!stackPayload.length) {
             addMsg({
@@ -747,6 +949,14 @@
             setIsDeploying(false);
             return;
           }
+
+          // Tool: deploy_ecs
+          const deployToolId = addMsg({
+            type: "tool-use",
+            tool: "deploy_ecs",
+            input: `${stackPayload.length} service(s)`,
+            thinking: true,
+          });
 
           const deployMsgId = addMsg({
             role: "ai",
@@ -767,12 +977,27 @@
             if (!resp.ok)
               throw new Error(data.error || `Deploy failed (${resp.status})`);
 
-            updateMsg(deployMsgId, { deployments: data.deployments });
+            updateMsg(deployToolId, { thinking: false, result: "provisioned" });
+            const expiresAt = Date.now() + SANDBOX_TTL_MS;
+            setSandboxExpiresAt(expiresAt);
+            updateMsg(deployMsgId, {
+              deployments: data.deployments,
+              expiresAt,
+            });
+
+            // Tool: check_health
+            const healthToolId = addMsg({
+              type: "tool-use",
+              tool: "check_health",
+              input: `${stackPayload.length} service(s)`,
+              thinking: true,
+            });
 
             // Poll /status until all services are healthy
             let attempts = 0;
             const poll = async () => {
               if (attempts++ > 30) {
+                updateMsg(healthToolId, { thinking: false, result: "timeout" });
                 updateMsg(deployMsgId, { thinking: false });
                 setIsDeploying(false);
                 return;
@@ -794,6 +1019,10 @@
                 });
 
                 if (allHealthy) {
+                  updateMsg(healthToolId, {
+                    thinking: false,
+                    result: "all healthy ✓",
+                  });
                   setIsDeploying(false);
                   return;
                 }
@@ -802,6 +1031,10 @@
             };
             setTimeout(poll, 10000);
           } catch (e) {
+            updateMsg(deployToolId, {
+              thinking: false,
+              result: `error: ${e.message}`,
+            });
             updateMsg(deployMsgId, {
               thinking: false,
               error: e.message,
@@ -822,37 +1055,23 @@
           selectionsRef.current = {};
           setPhase("analyzing");
 
-          await delay(50); // Let state flush
+          await delay(50);
 
-          // Step 1: User message
+          // User message
           addMsg({ role: "user", type: "text", text });
+          await delay(400);
 
-          await delay(600);
-
-          // Step 2: Analyze
-          const thinkId = addMsg({
-            role: "ai",
-            agent: "Exodus",
-            type: "text",
-            thinking: "analyzing your tools…",
-            text: "",
+          // Tool: identify_tools
+          const identifyId = addMsg({
+            type: "tool-use",
+            tool: "identify_tools",
+            input: text.length > 40 ? text.slice(0, 37) + "…" : text,
+            thinking: true,
           });
+          await delay(1000);
 
-          await delay(1200);
-
+          // Match SaaS tools
           const matched = matchTools(text);
-
-          if (matched.length === 0) {
-            // Try AI fallback
-            updateMsg(thinkId, {
-              thinking: false,
-              text: 'I couldn\'t identify any SaaS tools in your message. Try mentioning specific tools — for example: "We use Notion, Slack, and Jira" or "Datadog, GitHub, Vercel".',
-            });
-            setPhase("idle");
-            return;
-          }
-
-          // Deduplicate
           const uniqueMatched = [];
           const seenSlugs = new Set();
           for (const t of matched) {
@@ -862,20 +1081,76 @@
             }
           }
 
-          updateMsg(thinkId, {
+          // Match open-source tools (exclude any that overlap with SaaS names)
+          const matchedOSS = matchOSSTools(text);
+          const uniqueOSS = [];
+          const seenOSSSlugs = new Set();
+          for (const s of matchedOSS) {
+            if (!seenOSSSlugs.has(s.slug) && !seenSlugs.has(s.slug)) {
+              seenOSSSlugs.add(s.slug);
+              uniqueOSS.push(s);
+            }
+          }
+
+          if (uniqueMatched.length === 0 && uniqueOSS.length === 0) {
+            updateMsg(identifyId, {
+              thinking: false,
+              result: "no tools found",
+            });
+            addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "text",
+              thinking: false,
+              text: 'I couldn\'t identify any tools in your message. Try mentioning specific tools — for example: "We use Notion, Slack, and Grafana" or "Datadog, GitHub, GitLab".',
+            });
+            setPhase("idle");
+            return;
+          }
+
+          const identifyParts = [];
+          if (uniqueMatched.length)
+            identifyParts.push(`${uniqueMatched.length} SaaS`);
+          if (uniqueOSS.length)
+            identifyParts.push(`${uniqueOSS.length} open-source`);
+          const allNames = [
+            ...uniqueMatched.map((t) => t.name),
+            ...uniqueOSS.map((s) => s.name),
+          ];
+          updateMsg(identifyId, {
             thinking: false,
-            text:
-              uniqueMatched.length === 1
-                ? `Replacing **${uniqueMatched[0].name}**.`
-                : `Replacing ${uniqueMatched.map((t) => `**${t.name}**`).join(", ")}.`,
+            result: `${identifyParts.join(" + ")} — ${allNames.join(", ")}`,
           });
 
-          // Step 3: Recommend alternatives for each tool
+          // ── Handle open-source tools first (already free!) ──
+          for (const oss of uniqueOSS) {
+            await delay(400);
+            const ossId = addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "oss-already",
+              thinking: "checking…",
+              stack: oss,
+              replacesNames: (oss.alternativeTo ?? []).map(saasDisplayName),
+            });
+            await delay(400);
+            updateMsg(ossId, { thinking: false });
+          }
+
+          // ── Handle SaaS tools (need alternatives) ──
           const newSelections = {};
           const newPendingHITL = [];
 
           for (const tool of uniqueMatched) {
-            await delay(700);
+            await delay(400);
+
+            const matchId = addMsg({
+              type: "tool-use",
+              tool: "match_alternative",
+              input: tool.name,
+              thinking: true,
+            });
+            await delay(600);
 
             const candidates = findAlternatives(tool.slug);
             const strongCandidates = candidates.filter(
@@ -883,17 +1158,17 @@
             );
 
             if (candidates.length === 0) {
-              addMsg({
-                role: "ai",
-                agent: "Exodus",
-                type: "text",
+              updateMsg(matchId, {
                 thinking: false,
-                text: `No open-source alternative found for **${tool.name}** in the catalog yet.`,
+                result: "no match in catalog",
               });
             } else if (strongCandidates.length <= 1) {
-              // Auto-select best candidate
               const best = strongCandidates[0] || candidates[0];
               newSelections[tool.slug] = best;
+              updateMsg(matchId, {
+                thinking: false,
+                result: `${best.name} ★${((best.stars ?? 0) / 1000).toFixed(0)}k`,
+              });
               const autoId = addMsg({
                 role: "ai",
                 agent: "Exodus",
@@ -904,10 +1179,13 @@
                 stack: best,
                 isStrong: (best.stars ?? 0) >= STRONG_THRESHOLD,
               });
-              await delay(500);
+              await delay(400);
               updateMsg(autoId, { thinking: false });
             } else {
-              // Multiple strong candidates → HITL
+              updateMsg(matchId, {
+                thinking: false,
+                result: `${strongCandidates.length} candidates — user decides`,
+              });
               newPendingHITL.push(tool.slug);
               addMsg({
                 role: "ai",
@@ -930,6 +1208,16 @@
           } else if (Object.keys(newSelections).length > 0) {
             await delay(400);
             proceedToFetch(newSelections);
+          } else if (uniqueOSS.length > 0) {
+            // Only OSS tools were found — nothing to replace
+            addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "text",
+              thinking: false,
+              text: "All the tools I found are **already open-source** — you're in great shape! No SaaS to replace. 🎉",
+            });
+            setPhase("idle");
           }
         };
 
@@ -941,6 +1229,45 @@
         // ── Render a single message ──
         const renderMessage = (msg) => {
           switch (msg.type) {
+            case "tool-use": {
+              const def = AGENT_TOOLS[msg.tool] || {};
+              return (
+                <div
+                  key={msg.id}
+                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[13px] font-mono text-[#8a8a96] mr-auto mb-1"
+                  style={{ animation: "bubble-in 150ms ease-out both" }}
+                >
+                  <span className="text-sm shrink-0 w-[18px] text-center">
+                    {msg.thinking ? (
+                      <span
+                        className="inline-block text-sm text-cyan-300"
+                        style={{ animation: "tool-spin 1s linear infinite" }}
+                      >
+                        ⟳
+                      </span>
+                    ) : (
+                      def.icon || "🔧"
+                    )}
+                  </span>
+                  <code className="font-semibold text-[#c9c9d4] text-[13px] bg-transparent p-0">
+                    {def.label || msg.tool}
+                  </code>
+                  {msg.input && (
+                    <span className="opacity-50 text-xs whitespace-nowrap overflow-hidden text-ellipsis">
+                      {msg.input.length > 40
+                        ? msg.input.slice(0, 37) + "…"
+                        : msg.input}
+                    </span>
+                  )}
+                  {!msg.thinking && msg.result && (
+                    <span className="ml-auto text-xs text-cyan-300 whitespace-nowrap">
+                      → {msg.result}
+                    </span>
+                  )}
+                </div>
+              );
+            }
+
             case "text":
               return (
                 <ChatBubble
@@ -951,6 +1278,54 @@
                   thinking={msg.thinking}
                 >
                   {msg.text && renderMarkdown(msg.text)}
+                </ChatBubble>
+              );
+
+            case "oss-already":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  <div className="flex items-start gap-3">
+                    <SiImg
+                      name={msg.stack.name}
+                      style={{
+                        filter: "var(--pui-logo-filter)",
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        marginTop: 2,
+                      }}
+                    />
+                    <div>
+                      <p style={{ margin: "0 0 4px" }}>
+                        <strong>{msg.stack.name}</strong> is{" "}
+                        <span style={{ color: "#22c55e", fontWeight: 600 }}>
+                          already open-source
+                        </span>{" "}
+                        — no replacement needed.
+                      </p>
+                      <p
+                        style={{
+                          margin: "0 0 2px",
+                          fontSize: "0.85rem",
+                          color: "#a8a8b3",
+                        }}
+                      >
+                        {msg.stack.description}
+                      </p>
+                      <span style={{ fontSize: "0.8rem", color: "#a8a8b3" }}>
+                        ★ {(msg.stack.stars ?? 0).toLocaleString()} stars ·{" "}
+                        {msg.stack.license}
+                        {msg.replacesNames?.length > 0 && (
+                          <> · replaces {msg.replacesNames.join(", ")}</>
+                        )}
+                      </span>
+                    </div>
+                  </div>
                 </ChatBubble>
               );
 
@@ -967,18 +1342,9 @@
                   </p>
                   <GlassCard>
                     <GlassCard.Icon>
-                      <img
-                        alt={`${msg.stack.name} logo`}
-                        style={{
-                          filter: "var(--pui-logo-filter)",
-                          width: 32,
-                          height: 32,
-                          borderRadius: 6,
-                        }}
-                        src={`https://esm.sh/simple-icons@11/icons/${msg.stack.name.toLowerCase().replaceAll(" ", "")}.svg`}
-                        onError={(e) => {
-                          e.currentTarget.parentNode.innerHTML = "✓";
-                        }}
+                      <SiImg
+                        name={msg.stack.name}
+                        style={{ width: 32, height: 32, borderRadius: 6 }}
                       />
                     </GlassCard.Icon>
                     <GlassCard.Title>{msg.stack.name}</GlassCard.Title>
@@ -1042,15 +1408,15 @@
                     to <strong>{msg.saasName}</strong>. Which one fits your team
                     best?
                   </p>
-                  <div style={styles.hitlGrid}>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 mt-2">
                     {msg.candidates.map((c) => {
                       const isSelected =
                         selections[msg.saasSlug]?.slug === c.slug;
                       return (
                         <div
                           key={c.slug}
+                          className="rounded-xl p-4 transition-all duration-200 border"
                           style={{
-                            ...styles.hitlCard,
                             borderColor: isSelected
                               ? "color-mix(in srgb, var(--pui-grad-from) 50%, transparent)"
                               : "rgba(255,255,255,0.08)",
@@ -1059,7 +1425,7 @@
                               : "rgba(255,255,255,0.03)",
                           }}
                         >
-                          <div style={styles.hitlCardHeader}>
+                          <div className="flex justify-between items-center">
                             <strong>{c.name}</strong>
                             <span
                               style={{
@@ -1137,7 +1503,7 @@
                     </p>
                   )}
 
-                  <div style={styles.recipeTable}>
+                  <div className="flex flex-col gap-1 mb-4 font-mono text-sm">
                     {Object.entries(msg.allSelections).map(
                       ([saasSlug, stack]) => {
                         const status = runProgress[stack.slug];
@@ -1148,15 +1514,18 @@
                               ? "#f59e0b"
                               : "#8a8a96";
                         return (
-                          <div key={saasSlug} style={styles.recipeRow}>
-                            <span style={styles.recipeOss}>
+                          <div
+                            key={saasSlug}
+                            className="grid grid-cols-[1.2fr_1.5fr_0.8fr] items-center gap-3 px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] rounded-lg"
+                          >
+                            <span className="font-semibold text-white flex items-center gap-2">
                               <StatusDot
                                 color={dotColor}
                                 static={!status || status === "live"}
                               />{" "}
                               {stack.name}
                             </span>
-                            <span style={styles.recipeReplaces}>
+                            <span className="text-[#a8a8b3]">
                               replaces {saasDisplayName(saasSlug)}
                             </span>
                             {status === "live" && (
@@ -1168,7 +1537,7 @@
                                     domain: `${stack.slug}.stack.localhost`,
                                   })
                                 }
-                                style={styles.serviceLink}
+                                className="text-xs text-cyan-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 font-mono text-right"
                               >
                                 Open →
                               </button>
@@ -1195,29 +1564,33 @@
                           sparkle
                           loading={isDeploying}
                           onClick={() =>
-                            handleCloudDeploy(msg.allSelections, msg.files)
+                            handlePayAndDeploy(msg.allSelections, msg.files)
                           }
                         >
-                          ☁ Deploy to cloud
+                          <SiImg
+                            name="icloud"
+                            className="inline-flex w-4 align-middle mr-2"
+                          />
+                          Deploy to cloud • $1
                         </Button>
                       </div>
 
-                      <div style={styles.secondaryActions}>
+                      <div className="flex justify-center items-center gap-1.5 flex-wrap">
                         <button
-                          style={styles.secondaryBtn}
+                          className="text-xs text-[#8a8a96] bg-transparent border-none cursor-pointer px-1.5 py-1 underline underline-offset-2 font-[inherit]"
                           onClick={() => handleRunAll(msg.allSelections)}
                         >
                           {isRunning ? "Running…" : "▶ Run locally"}
                         </button>
-                        <span style={styles.secondaryDot}>·</span>
+                        <span className="text-white/15 text-[0.7rem]">·</span>
                         <button
-                          style={styles.secondaryBtn}
+                          className="text-xs text-[#8a8a96] bg-transparent border-none cursor-pointer px-1.5 py-1 underline underline-offset-2 font-[inherit]"
                           onClick={() => downloadCompose(msg.files)}
                         >
                           ↓ compose.yaml
                         </button>
                         <button
-                          style={styles.secondaryBtn}
+                          className="text-xs text-[#8a8a96] bg-transparent border-none cursor-pointer px-1.5 py-1 underline underline-offset-2 font-[inherit]"
                           onClick={() => downloadEnv(msg.files)}
                         >
                           ↓ .env
@@ -1295,24 +1668,14 @@
                                     domain: `${slug}.stack.localhost`,
                                   })
                                 }
-                                style={{
-                                  ...styles.serviceLink,
-                                  fontSize: "0.75rem",
-                                }}
+                                className="text-[0.75rem] text-cyan-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 font-mono text-right"
                               >
                                 Try it out →
                               </button>
                             )}
                           </div>
                           {msg.logs?.[slug] && (
-                            <pre
-                              style={{
-                                ...styles.filePre,
-                                maxHeight: 80,
-                                marginTop: 4,
-                                fontSize: "0.7rem",
-                              }}
-                            >
+                            <pre className="text-[0.7rem] overflow-auto max-h-[80px] p-3 m-0 mt-1 bg-black/30 text-[#a8a8b3] whitespace-pre-wrap break-all">
                               {msg.logs[slug]}
                             </pre>
                           )}
@@ -1345,9 +1708,18 @@
                   )}
 
                   {allHealthy && (
-                    <p style={{ margin: "0 0 16px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        margin: "0 0 16px",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <GradientText>Your stack is live</GradientText>
-                    </p>
+                      <CountdownBadge expiresAt={msg.expiresAt} />
+                    </div>
                   )}
 
                   {msg.deployments?.length > 0 && (
@@ -1463,7 +1835,7 @@
 
         // ── Render ──
         return (
-          <div style={styles.page}>
+          <div className="font-sans text-[#e7e7ea] bg-[#0a0a0f] min-h-screen">
             {/* ─── Announcement bar ─── */}
             <StickyBanner
               hideSparkle
@@ -1476,26 +1848,23 @@
             {/* ─── Hero ─── */}
             <section style={{ position: "relative", overflow: "hidden" }}>
               <Aurora animated />
-              <div
-                style={{
-                  ...styles.section,
-                  paddingBottom: 0,
-                  marginBottom: -16,
-                  paddingTop: 16,
-                }}
-              >
-                <h1 style={styles.brand}>
-                  <Sparkle static solid glyph="⏏" /> Exodus
+              <div className="max-w-[1100px] mx-auto px-6 pt-4 pb-0 -mb-4">
+                <h1 className="text-[1.4rem] leading-tight font-medium">
+                  <a href=".">
+                    <Sparkle static solid glyph="⏏" /> Exodus
+                  </a>
                 </h1>
               </div>
 
-              <div style={{ ...styles.hero, marginBottom: -32 }} id="picker">
-                <div style={styles.heroInner}>
-                  <h1 style={styles.h1}>
-                    Eject from
-                    <br />
+              <div className="pt-[120px] pb-[120px] -mb-8" id="picker">
+                <div className="relative max-w-[760px] mx-auto text-center flex flex-col items-center gap-6">
+                  <h1
+                    className="font-extrabold leading-tight m-0"
+                    style={{ fontSize: "clamp(2.2rem, 5vw, 3.6rem)" }}
+                  >
+                    Eject from{" "}
                     <GradientText>
-                      <WordRoll
+                      <Rotator
                         key={catalog.length > 0 ? "catalog" : "static"}
                         words={(() => {
                           if (catalog.length === 0) {
@@ -1522,42 +1891,28 @@
                             .slice(0, 24)
                             .sort(() => Math.random() - 0.5)
                             .map(([slug]) => saasDisplayName(slug));
-                        })().map((name) => (
-                          <>
-                            {/* <img
-                              className="inline-flex w-10 h-10 align-middle mr-3 mb-2"
-                              style={{
-                                filter: "var(--pui-logo-filter)",
-                              }}
-                              src={`https://esm.sh/simple-icons@11/icons/${name.toLowerCase().replaceAll(" ", "")}.svg`}
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                              title={name}
-                            />*/}
-                            {name}
-                          </>
-                        ))}
+                        })()}
                         gradient
                       />
                     </GradientText>
                   </h1>
 
-                  <p style={styles.lede}>
-                    Tell Exodus which SaaS you pay for. It finds the best{" "}
-                    <strong>open-source alternatives</strong>, and deploys them
-                    to <strong>your own cloud</strong> — live in under two
+                  <p className="text-lg leading-relaxed text-[#a8a8b3] max-w-[640px] mx-auto">
+                    Tell me which SaaS you pay for. I'll find the best{" "}
+                    <strong>open-source alternatives</strong>, and deploy them
+                    to <strong>your own cloud</strong>. All in under two
                     minutes.
                   </p>
 
                   <HighlightedPrompt
                     catalog={catalog}
-                    placeholder="Which tools are you paying for? (e.g. Notion, Slack, Datadog, Jira…)"
+                    stacks={stacks}
+                    placeholder="Which tools do you use? (e.g. Notion, Slack, GitLab, Grafana…)"
                     ctaLabel="Build my stack"
                     onSubmit={handleSubmit}
                   />
 
-                  {/* <p style={styles.heroFootnote}>
+                  {/* <p className="text-[0.95rem] text-[#8a8a96]">
                     {catalog.length > 0 && (
                       <>
                         {catalog.length} SaaS tools recognized · {stacks.length}{" "}
@@ -1571,17 +1926,23 @@
 
             {/* ─── Conversation ─── */}
             {messages.length > 0 && (
-              <section style={styles.section} id="conversation">
-                {/* <div style={styles.center}>
+              <section
+                className="max-w-[1100px] mx-auto px-6 py-20"
+                id="conversation"
+              >
+                {/* <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
                   <EyebrowPill>Agent conversation</EyebrowPill>
                 </div>*/}
 
-                <div style={styles.convoWrap} ref={convoRef}>
+                <div
+                  className="flex flex-col gap-4 max-w-[780px] mx-auto"
+                  ref={convoRef}
+                >
                   {messages.map(renderMessage)}
 
                   {/* HITL status bar */}
                   {phase === "hitl" && pendingHITL.length > 0 && (
-                    <div style={styles.hitlStatus}>
+                    <div className="flex items-center gap-2 px-4 py-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-[10px] text-sm text-amber-400">
                       <Sparkle />
                       <span>
                         Waiting for your selection on{" "}
@@ -1597,23 +1958,134 @@
               </section>
             )}
 
-            {/* ─── How it works ─── */}
-            <section style={styles.section} id="how-it-works">
-              <div style={styles.center}>
-                <EyebrowPill icon={false}>How it works</EyebrowPill>
-                <h2 style={styles.h2}>
-                  Three steps.{" "}
-                  <GradientText>You stay in control.</GradientText>
+            {/* ─── Social proof ─── */}
+            <section className="max-w-[1100px] mx-auto px-6 py-20">
+              <p className="text-center text-[#8a8a96] mb-4">
+                Replacements for all of these — ready to deploy:
+              </p>
+              <LogoMarquee
+                pauseOnHover
+                speed={90}
+                logos={(() => {
+                  // Top 30 SaaS tools by total stars of their OSS alternatives
+                  const saasStars = {};
+                  for (const s of stacks) {
+                    for (const a of s.alternativeTo ?? []) {
+                      if (EXCLUDED_SAAS.has(a)) continue;
+                      saasStars[a] = (saasStars[a] ?? 0) + (s.stars ?? 0);
+                    }
+                  }
+                  return Object.entries(saasStars)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 24)
+                    .map(([slug]) => {
+                      const name = saasDisplayName(slug);
+                      return {
+                        kind: "node",
+                        node: (
+                          <span className="text-xl font-bold text-[#c9c9d4] whitespace-nowrap">
+                            <SiImg
+                              name={slug}
+                              title={name}
+                              className="inline-flex w-1 h-1 mr-2"
+                            />
+                            {name}
+                          </span>
+                        ),
+                        key: slug,
+                      };
+                    });
+                })()}
+              />
+            </section>
+
+            {/* ─── Why ─── */}
+            <section className="max-w-[1100px] mx-auto px-6 py-20" id="why">
+              <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
+                <EyebrowPill icon={false}>Why self-host</EyebrowPill>
+                <h2
+                  className="font-bold leading-tight mt-3"
+                  style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
+                >
+                  Three reasons teams{" "}
+                  <GradientText>eject from SaaS.</GradientText>
                 </h2>
               </div>
 
-              <div style={styles.cardGrid}>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>🏛️</GlassCard.Icon>
+                  <GlassCard.Title>Data sovereignty</GlassCard.Title>
+                  <GlassCard.Body>
+                    Your data lives on your infrastructure, in your region,
+                    under your jurisdiction. No third-party access, no
+                    cross-border transfers, no surprise policy changes.
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>🔓</GlassCard.Icon>
+                  <GlassCard.Title>Vendor independence</GlassCard.Title>
+                  <GlassCard.Body>
+                    No lock-in. No forced migrations when a vendor pivots. No
+                    "we're sunsetting this feature" emails. You own the software
+                    — it runs on your terms, forever.
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>📉</GlassCard.Icon>
+                  <GlassCard.Title>Predictable costs</GlassCard.Title>
+                  <GlassCard.Body>
+                    SaaS bills scale with seats. Self-hosted costs scale with
+                    usage. A 20-person team can replace $2,000–5,000/mo in
+                    subscriptions with ~$50/mo of compute.
+                  </GlassCard.Body>
+                </GlassCard>
+              </div>
+              <br />
+
+              <BeforeAfter
+                brand="Exodus"
+                beforeLabel="With SaaS"
+                afterLabel="With Exodus"
+                before={[
+                  "Data on someone else's servers",
+                  "Per-seat pricing that grows with your team",
+                  "Vendor decides when features change",
+                  "Locked in — migration is painful",
+                ]}
+                after={[
+                  "Data on your own infrastructure",
+                  "Fixed compute cost, unlimited seats",
+                  "You control every update",
+                  "Open source — switch anytime",
+                ]}
+              />
+            </section>
+
+            {/* ─── How it works ─── */}
+            <section
+              className="max-w-[1100px] mx-auto px-6 py-20"
+              id="how-it-works"
+            >
+              <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
+                <EyebrowPill icon={false}>How it works</EyebrowPill>
+                <h2
+                  className="font-bold leading-tight mt-3"
+                  style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
+                >
+                  Three steps. <GradientText>You stay in control.</GradientText>
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
                 <GlassCard breathing glowOnHover data-numbering="1">
                   <GlassCard.Title>Name your tools</GlassCard.Title>
                   <GlassCard.Body>
-                    Type the SaaS your team uses — Notion, Slack, Jira,
-                    Datadog, whatever. Exodus recognizes{" "}
-                    {catalog.length || "200"}+ products instantly.
+                    Type the SaaS your team uses — Notion, Slack, Jira, Datadog,
+                    whatever. Exodus recognizes {catalog.length || "200"}+
+                    products instantly.
                   </GlassCard.Body>
                   <GlassCard.Link href="#picker">Try it now</GlassCard.Link>
                 </GlassCard>
@@ -1638,63 +2110,27 @@
               </div>
             </section>
 
-            {/* ─── Social proof ─── */}
-            <section style={styles.section}>
-              <p style={styles.marqueeCaption}>
-                Replacements for all of these — ready to deploy:
-              </p>
-              <LogoMarquee
-                pauseOnHover
-                speed={90}
-                logos={(() => {
-                  // Top 30 SaaS tools by total stars of their OSS alternatives
-                  const saasStars = {};
-                  for (const s of stacks) {
-                    for (const a of s.alternativeTo ?? []) {
-                      if (EXCLUDED_SAAS.has(a)) continue;
-                      saasStars[a] = (saasStars[a] ?? 0) + (s.stars ?? 0);
-                    }
-                  }
-                  return Object.entries(saasStars)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 24)
-                    .map(([slug]) => {
-                      const name = saasDisplayName(slug);
-                      return {
-                        kind: "node",
-                        node: (
-                          <span style={styles.logo}>
-                            <img
-                              className="inline-flex w-1 h-1 mr-2"
-                              src={`https://esm.sh/simple-icons@11/icons/${slug.toLowerCase().replaceAll(" ", "")}.svg`}
-                              title={name}
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                            {name}
-                          </span>
-                        ),
-                        key: slug,
-                      };
-                    });
-                })()}
-              />
-            </section>
-
             {/* ─── Features ─── */}
-            <section style={styles.section} id="features">
-              <div style={styles.center}>
+            <section
+              className="max-w-[1100px] mx-auto px-6 py-20"
+              id="features"
+            >
+              <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
                 <EyebrowPill icon={false}>Features</EyebrowPill>
-                <h2 style={styles.h2}>
+                <h2
+                  className="font-bold leading-tight mt-3"
+                  style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
+                >
                   Everything you need to{" "}
                   <GradientText>break free from SaaS.</GradientText>
                 </h2>
               </div>
 
-              <div style={styles.cardGrid}>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
                 <GlassCard breathing glowOnHover>
-                  <GlassCard.Icon>🔍</GlassCard.Icon>
+                  <GlassCard.Icon>
+                    <SiImg name="apachearrow" className="w-5" />
+                  </GlassCard.Icon>
                   <GlassCard.Title>
                     {approxStackCount || "200"}+ alternatives
                   </GlassCard.Title>
@@ -1706,7 +2142,9 @@
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
-                  <GlassCard.Icon>🤖</GlassCard.Icon>
+                  <GlassCard.Icon>
+                    <SiImg name="ticktick" className="w-5" />
+                  </GlassCard.Icon>
                   <GlassCard.Title>You approve every choice</GlassCard.Title>
                   <GlassCard.Body>
                     The agent auto-selects clear winners and asks you on close
@@ -1716,7 +2154,9 @@
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
-                  <GlassCard.Icon>☁️</GlassCard.Icon>
+                  <GlassCard.Icon>
+                    <SiImg name="iCloud" className="w-5" />
+                  </GlassCard.Icon>
                   <GlassCard.Title>Live in two minutes</GlassCard.Title>
                   <GlassCard.Body>
                     One click deploys to AWS ECS Fargate. Each service gets its
@@ -1725,7 +2165,9 @@
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
-                  <GlassCard.Icon>🐳</GlassCard.Icon>
+                  <GlassCard.Icon>
+                    <SiImg name="Docker" className="w-5" />
+                  </GlassCard.Icon>
                   <GlassCard.Title>Works offline too</GlassCard.Title>
                   <GlassCard.Body>
                     Every stack comes with a production-grade{" "}
@@ -1748,24 +2190,27 @@
                   <GlassCard.Icon>👀</GlassCard.Icon>
                   <GlassCard.Title>Preview before you commit</GlassCard.Title>
                   <GlassCard.Body>
-                    Open your deployed services directly inside Exodus. See
-                    them running live before you make the switch.
+                    Open your deployed services directly inside Exodus. See them
+                    running live before you make the switch.
                   </GlassCard.Body>
                 </GlassCard>
               </div>
             </section>
 
             {/* ─── Pricing ─── */}
-            <section style={styles.section} id="pricing">
-              <div style={styles.center}>
+            <section className="max-w-[1100px] mx-auto px-6 py-20" id="pricing">
+              <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
                 <EyebrowPill icon={false}>Pricing</EyebrowPill>
-                <h2 style={styles.h2}>
+                <h2
+                  className="font-bold leading-tight mt-3"
+                  style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
+                >
                   The software is free.{" "}
                   <GradientText>We handle the rest.</GradientText>
                 </h2>
               </div>
 
-              <div style={styles.pricingGrid}>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6 items-start">
                 <PricingCard>
                   <PricingCard.Tier>DIY</PricingCard.Tier>
                   <PricingCard.Amount>Free</PricingCard.Amount>
@@ -1781,19 +2226,19 @@
                 </PricingCard>
 
                 <PricingCard featured>
-                  <PricingCard.Flag hideSparkle>Peace of mind</PricingCard.Flag>
+                  <PricingCard.Flag hideSparkle>Try it live</PricingCard.Flag>
                   <PricingCard.Tier>Hosted Cloud</PricingCard.Tier>
-                  <PricingCard.Amount unit="once, per stack">
-                    $9
+                  <PricingCard.Amount unit="per stack, 5h sandbox">
+                    $1
                   </PricingCard.Amount>
                   <PricingCard.Blurb>
-                    Let us handle the hosting on your cloud of choice.
-                    Maintenance is yours.
+                    See your stack running live for 5 hours. Evaluate it, then
+                    self-host or upgrade.
                   </PricingCard.Blurb>
                   <PricingCard.Features>
-                    <li>Everything in Free</li>
                     <li>One-click deploy to AWS</li>
-                    <li>Secure + deployment receipt</li>
+                    <li>HTTPS subdomain for 5 hours</li>
+                    <li>Export config before expiry</li>
                   </PricingCard.Features>
                   <PricingCard.CTA href="#picker">Get started</PricingCard.CTA>
                 </PricingCard>
@@ -1823,20 +2268,16 @@
             </section>
 
             {/* ─── Closer ─── */}
-            <section
-              style={{
-                position: "relative",
-                overflow: "hidden",
-                // ...styles.section,
-                ...styles.closer,
-              }}
-            >
+            <section className="relative overflow-hidden text-center flex flex-col items-center gap-8 pt-[100px] pb-[140px]">
               <Aurora
                 blobs={[
                   { color: "rgba(124,58,237,0.55)", x: 50, y: 90, size: 60 },
                 ]}
               />
-              <h2 style={styles.h2}>
+              <h2
+                className="font-bold leading-tight mt-3"
+                style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
+              >
                 Own your tools.
                 <br />
                 <GradientText>Stop renting software.</GradientText>
@@ -1847,63 +2288,85 @@
             </section>
 
             {/* ─── Footer ─── */}
-            <footer style={styles.footer}>
-              <div style={styles.footerInner}>
+            <footer className="px-6 pt-16 pb-8 max-w-[1100px] mx-auto">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1.5fr] gap-8 mb-12">
                 {/* Brand column */}
-                <div style={styles.footerCol}>
-                  <p style={styles.footerBrand}>
+                <div className="flex flex-col gap-2">
+                  <p className="text-xl font-extrabold m-0">
                     <Sparkle static solid glyph="⏏" /> Exodus
                   </p>
-                  <p style={styles.footerMuted}>
+                  <p className="text-sm text-[#5a5a66] m-0">
                     Eject from SaaS. Own your stack.
                   </p>
                 </div>
 
                 {/* Navigation column */}
-                <div style={styles.footerCol}>
-                  <p style={styles.footerHeading}>Product</p>
-                  <a href="#picker" style={styles.footerLink}>
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-bold text-[#e7e7ea] mb-1 uppercase tracking-wide">
+                    Product
+                  </p>
+                  <a
+                    href="#picker"
+                    className="text-sm text-[#8a8a96] no-underline leading-loose"
+                  >
                     Build my stack
                   </a>
-                  <a href="#how-it-works" style={styles.footerLink}>
+                  <a
+                    href="#how-it-works"
+                    className="text-sm text-[#8a8a96] no-underline leading-loose"
+                  >
                     How it works
                   </a>
-                  <a href="#features" style={styles.footerLink}>
+                  <a
+                    href="#why"
+                    className="text-sm text-[#8a8a96] no-underline leading-loose"
+                  >
+                    Why self-host
+                  </a>
+                  <a
+                    href="#features"
+                    className="text-sm text-[#8a8a96] no-underline leading-loose"
+                  >
                     Features
                   </a>
-                  <a href="#pricing" style={styles.footerLink}>
+                  <a
+                    href="#pricing"
+                    className="text-sm text-[#8a8a96] no-underline leading-loose"
+                  >
                     Pricing
                   </a>
                 </div>
 
                 {/* Community column */}
-                <div style={styles.footerCol}>
-                  <p style={styles.footerHeading}>Community</p>
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-bold text-[#e7e7ea] mb-1 uppercase tracking-wide">
+                    Community
+                  </p>
                   <a
                     href="https://github.com/arnaud/exodus"
                     target="_blank"
-                    style={styles.footerLink}
+                    className="text-sm text-[#8a8a96] no-underline leading-loose"
                   >
                     GitHub
                   </a>
                   <a
                     href="https://stack.lol"
                     target="_blank"
-                    style={styles.footerLink}
+                    className="text-sm text-[#8a8a96] no-underline leading-loose"
                   >
                     Stack
                   </a>
                 </div>
 
                 {/* Badges column */}
-                <div style={styles.footerCol}>
+                <div className="flex flex-col gap-2">
                   <CommunityBadge
-                    icon="https://esm.sh/simple-icons@11/icons/github.svg"
+                    icon={siIcon("github")}
                     title="Star us on GitHub"
                     href="https://github.com/arnaud/exodus"
                   />
                   <CommunityBadge
-                    icon="https://esm.sh/simple-icons@11/icons/docker.svg"
+                    icon={siIcon("docker")}
                     title={`${approxStackCount || "…"}+ alternatives`}
                     subtitle={<>Tested &amp; ready to run</>}
                     href="https://stack.lol"
@@ -1911,9 +2374,9 @@
                 </div>
               </div>
 
-              <div style={styles.footerBottom}>
+              <div className="flex justify-between items-center border-t border-white/[0.06] pt-6 text-sm text-[#5a5a66]">
                 <span>© {new Date().getFullYear()} Exodus</span>
-                <span style={styles.footerMuted}>
+                <span className="text-sm text-[#5a5a66] m-0">
                   Built at SuperAI NEXT Hackathon
                 </span>
               </div>
@@ -1954,16 +2417,10 @@
                 }}
                 title={
                   <>
-                    <img
-                      className="inline-flex w-6 h-6 align-middle mr-2"
-                      style={{
-                        filter: "var(--pui-logo-filter)",
-                      }}
-                      src={`https://esm.sh/simple-icons@11/icons/${servicePopover.slug.toLowerCase().replaceAll(" ", "")}.svg`}
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
+                    <SiImg
+                      name={servicePopover.slug}
                       title={servicePopover.name}
+                      className="inline-flex w-6 h-6 align-middle mr-2"
                     />
                     {servicePopover.name}
                   </>
@@ -2006,304 +2463,6 @@
           </div>
         );
       }
-
-      // ─── Styles ──────────────────────────────────────────────────────────
-
-      const styles = {
-        page: {
-          fontFamily: "Inter, system-ui, -apple-system, sans-serif",
-          color: "#e7e7ea",
-          background: "#0a0a0f",
-          minHeight: "100vh",
-        },
-        section: {
-          maxWidth: 1100,
-          margin: "0 auto",
-          padding: "80px 24px",
-        },
-        hero: { paddingTop: 120, paddingBottom: 120 },
-        heroInner: {
-          position: "relative",
-          maxWidth: 760,
-          margin: "0 auto",
-          textAlign: "center",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 24,
-        },
-        brand: {
-          fontSize: "1.4rem",
-          lineHeight: 1.1,
-          fontWeight: 500,
-        },
-        h1: {
-          fontSize: "clamp(2.2rem, 5vw, 3.6rem)",
-          lineHeight: 1.1,
-          fontWeight: 800,
-          margin: 0,
-        },
-        h2: {
-          fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)",
-          lineHeight: 1.2,
-          fontWeight: 700,
-          margin: "12px 0 0",
-        },
-        lede: {
-          fontSize: "1.15rem",
-          lineHeight: 1.6,
-          color: "#a8a8b3",
-          maxWidth: 640,
-          margin: "0 auto",
-        },
-        heroFootnote: {
-          fontSize: "0.95rem",
-          color: "#8a8a96",
-        },
-        center: {
-          textAlign: "center",
-          maxWidth: 720,
-          margin: "0 auto 48px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-        },
-        cardGrid: {
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 24,
-        },
-        logo: {
-          fontSize: "1.25rem",
-          fontWeight: 700,
-          color: "#c9c9d4",
-          whiteSpace: "nowrap",
-        },
-        marqueeCaption: {
-          textAlign: "center",
-          color: "#8a8a96",
-          marginBottom: 16,
-        },
-
-        // ─── Conversation ───
-        convoWrap: {
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          maxWidth: 780,
-          margin: "0 auto",
-        },
-
-        // ─── HITL ───
-        hitlGrid: {
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          gap: 12,
-          marginTop: 8,
-        },
-        hitlCard: {
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 12,
-          padding: "16px",
-          transition: "all 0.2s ease",
-        },
-        hitlCardHeader: {
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        },
-        hitlStatus: {
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "12px 16px",
-          background: "rgba(245,158,11,0.08)",
-          border: "1px solid rgba(245,158,11,0.25)",
-          borderRadius: 10,
-          fontSize: "0.9rem",
-          color: "#f59e0b",
-        },
-
-        // ─── Recipe ───
-        recipeTable: {
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          marginBottom: 16,
-          fontFamily: "JetBrains Mono, ui-monospace, monospace",
-          fontSize: "0.9rem",
-        },
-        recipeRow: {
-          display: "grid",
-          gridTemplateColumns: "1.2fr 1.5fr 0.8fr",
-          alignItems: "center",
-          gap: 12,
-          padding: "10px 12px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: 8,
-        },
-        recipeOss: {
-          fontWeight: 600,
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        },
-        recipeReplaces: { color: "#a8a8b3" },
-        recipeStars: {
-          textAlign: "right",
-          color: "#8a8a96",
-          fontSize: "0.8rem",
-        },
-        serviceLink: {
-          fontSize: "0.8rem",
-          color: "#67e8f9",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          padding: 0,
-          textDecoration: "underline",
-          textUnderlineOffset: "2px",
-          fontFamily: "JetBrains Mono, ui-monospace, monospace",
-          textAlign: "right",
-        },
-
-        // ─── Files ───
-        fileDetails: {
-          marginBottom: 8,
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: 8,
-          overflow: "hidden",
-        },
-        fileSummary: {
-          cursor: "pointer",
-          padding: "10px 12px",
-          color: "#c9c9d4",
-          fontSize: "0.9rem",
-          background: "rgba(255,255,255,0.03)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        },
-        fileBadge: {
-          fontSize: "0.7rem",
-          padding: "2px 6px",
-          borderRadius: 4,
-          background: "rgba(124,58,237,0.2)",
-          color: "#a78bfa",
-        },
-        filePre: {
-          fontSize: "0.75rem",
-          overflow: "auto",
-          maxHeight: 200,
-          padding: "12px",
-          margin: 0,
-          background: "rgba(0,0,0,0.3)",
-          color: "#a8a8b3",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-all",
-        },
-        downloadRow: {
-          display: "flex",
-          gap: 12,
-          marginTop: 16,
-          flexWrap: "wrap",
-        },
-        secondaryActions: {
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          gap: 6,
-          flexWrap: "wrap",
-        },
-        secondaryBtn: {
-          fontSize: "0.8rem",
-          color: "#8a8a96",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          padding: "4px 6px",
-          textDecoration: "underline",
-          textUnderlineOffset: "2px",
-          fontFamily: "inherit",
-        },
-        secondaryDot: {
-          color: "rgba(255,255,255,0.15)",
-          fontSize: "0.7rem",
-        },
-
-        // ─── Pricing ───
-        pricingGrid: {
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 24,
-          alignItems: "start",
-        },
-
-        // ─── Closer ───
-        closer: {
-          textAlign: "center",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 32,
-          paddingTop: 100,
-          paddingBottom: 140,
-        },
-
-        // ─── Footer ───
-        footer: {
-          padding: "64px 24px 32px",
-          maxWidth: 1100,
-          margin: "0 auto",
-        },
-        footerInner: {
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr 1fr 1.5fr",
-          gap: 32,
-          marginBottom: 48,
-        },
-        footerCol: {
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        },
-        footerBrand: {
-          fontSize: "1.2rem",
-          fontWeight: 800,
-          margin: 0,
-        },
-        footerHeading: {
-          fontSize: "0.85rem",
-          fontWeight: 700,
-          color: "#e7e7ea",
-          margin: "0 0 4px",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        },
-        footerLink: {
-          fontSize: "0.9rem",
-          color: "#8a8a96",
-          textDecoration: "none",
-          lineHeight: 1.8,
-        },
-        footerMuted: {
-          fontSize: "0.85rem",
-          color: "#5a5a66",
-          margin: 0,
-        },
-        footerBottom: {
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          paddingTop: 24,
-          fontSize: "0.85rem",
-          color: "#5a5a66",
-        },
-      };
 
       // ─── Mount ───────────────────────────────────────────────────────────
       createRoot(document.getElementById("root")).render(<App />);
