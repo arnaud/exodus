@@ -1,0 +1,2033 @@
+<!doctype html>
+<html lang="en" class="dark" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- CSP: browser-enforced network lockdown. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh;
+        style-src 'self' 'unsafe-inline' https://esm.sh;
+        connect-src 'self' http://localhost:* http://127.0.0.1:* https://127.0.0.1:* https://esm.sh https://ai-gateway.vercel.sh https://raw.githubusercontent.com https://stack.lol;
+        frame-src https://stack.lol https://*.stack.localhost;
+        img-src 'self' data: blob: https://esm.sh;
+      "
+    />
+    <title>Exodus</title>
+    <meta
+      name="description"
+      content="Pick the SaaS tools you pay for. An AI agent finds free, open-source alternatives — fetches the Docker Compose files — and hands you a ready-to-run stack. You approve every choice."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 15 70 100'><text y='1em' font-size='100'>❖</text></svg>"
+    />
+
+    <!-- Tailwind CSS v4 (CDN, no build) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+      html {
+        scroll-behavior: smooth;
+      }
+
+      mark {
+        background: color-mix(in srgb, var(--pui-grad-mid) 60%, transparent);
+        color: inherit;
+        border-radius: 4px;
+        padding: 1px 3px;
+        margin: -1px -3px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+
+      mark:nth-child(even) {
+        background: color-mix(in srgb, var(--pui-grad-from) 60%, transparent);
+      }
+
+      .pui-popover {
+        max-width: initial !important;
+      }
+
+      em {
+        /*font-family: serif;*/
+        /*font-style: italic;*/
+        font-style: normal;
+      }
+
+      [data-numbering]::after {
+        content: attr(data-numbering) ". ";
+        font-weight: 600;
+        font-size: 10em;
+        line-height: 1em;
+        opacity: 0.08;
+        position: absolute;
+        bottom: 0;
+        left: -0.15em;
+        text-decoration: none;
+      }
+    </style>
+
+    <!-- Import Map: browser-native module resolution, no bundler -->
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19",
+          "react/": "https://esm.sh/react@19/",
+          "react-dom/client": "https://esm.sh/react-dom@19/client",
+          "marked": "https://esm.sh/marked@15",
+          "performative-ui": "https://esm.sh/performative-ui@0.3.0"
+        }
+      }
+    </script>
+
+    <!-- Babel Standalone: in-browser TypeScript + JSX transpilation -->
+    <script src="https://esm.sh/@babel/standalone@7/babel.min.js?raw"></script>
+
+    <link
+      rel="stylesheet"
+      href="https://esm.sh/performative-ui@0.3.0/dist/performative-ui.css"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Application -->
+    <script
+      type="text/babel"
+      data-type="module"
+      data-presets="typescript,react"
+    >
+      import React, { useState, useEffect, useCallback, useRef } from "react";
+      import { createRoot } from "react-dom/client";
+      import { marked } from "marked";
+
+      import {
+        StickyBanner,
+        Aurora,
+        NodeGraphBackground,
+        EyebrowPill,
+        GradientText,
+        WordRoll,
+        Rotator,
+        Prompt,
+        PromptHero,
+        StatCounter,
+        GlassCard,
+        LogoMarquee,
+        BeforeAfter,
+        PricingCard,
+        ChatBubble,
+        TokenStream,
+        MockIDE,
+        CommunityBadge,
+        ChatFAB,
+        Button,
+        Sparkle,
+        StatusDot,
+        Popover,
+      } from "performative-ui";
+
+      // ─── Constants ───────────────────────────────────────────────────────
+
+      const STRONG_THRESHOLD = 5000;
+      const GITHUB_BASE =
+        "https://raw.githubusercontent.com/codename-co/stack/main/hub";
+
+      const SAAS_NAMES = {
+        "1password": "1Password",
+        "adobe-xd": "Adobe XD",
+        "after-effects": "After Effects",
+        amazonapigateway: "Amazon API Gateway",
+        amazons3: "Amazon S3",
+        auth0: "Auth0",
+        chatgpt: "ChatGPT",
+        dockerhub: "Docker Hub",
+        "fast.com": "Fast.com",
+        "github-copilot": "GitHub Copilot",
+        google: "Google Search",
+        "google-analytics": "Google Analytics",
+        "google-meet": "Google Meet",
+        "google-notebook-lm": "Google NotebookLM",
+        "google-photos": "Google Photos",
+        "google-sheets": "Google Sheets",
+        googlecloudstorage: "Google Cloud Storage",
+        googledrive: "Google Drive",
+        "jfrog-artifactory": "JFrog Artifactory",
+        langsmith: "LangSmith",
+        launchdarkly: "LaunchDarkly",
+        "microsoft-office": "Microsoft Office",
+        newrelic: "New Relic",
+        onlyoffice: "OnlyOffice",
+        powerapps: "Power Apps",
+        powerbi: "Power BI",
+        youtube: "YouTube",
+      };
+
+      const AI_MODELS = [
+        "anthropic/claude-sonnet-4-6",
+        "anthropic/claude-haiku-4-5",
+        "google/gemini-2.5-pro",
+        "google/gemini-3.5-flash",
+      ];
+
+      // ─── Helpers ─────────────────────────────────────────────────────────
+
+      const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+      let _msgSeq = 0;
+      const msgId = () => `m-${++_msgSeq}-${Date.now()}`;
+
+      const saasDisplayName = (slug) =>
+        SAAS_NAMES[slug] ??
+        slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+      const downloadFile = (content, filename) => {
+        const blob = new Blob([content], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      // ─── Stack Desktop API ──────────────────────────────────────────────
+
+      const STACK_API = "https://127.0.0.1:57404";
+      const STACK_DOWNLOAD_BASE = "https://stack.lol/downloads";
+
+      async function isStackAppRunning() {
+        try {
+          const r = await fetch(`${STACK_API}/health`, {
+            signal: AbortSignal.timeout(1500),
+          });
+          return (await r.text()).trim() === "OK";
+        } catch {
+          return false;
+        }
+      }
+
+      /**
+       * Ask the Stack Desktop app to run a stack from the catalog.
+       * POSTs the public download URL — the Desktop app fetches,
+       * extracts, and docker-compose-ups it.
+       * Returns a ReadableStream of log lines, or throws on failure.
+       */
+      async function runStackFromCatalog(slug) {
+        const downloadUrl = `${STACK_DOWNLOAD_BASE}/${slug}.stack`;
+        const r = await fetch(`${STACK_API}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug: downloadUrl }),
+        });
+        if (!r.ok) throw new Error(`Stack API returned ${r.status}`);
+        return r.body;
+      }
+
+      /**
+       * Consume a ReadableStream of log text and call onLine for each chunk.
+       */
+      async function streamLogs(body, onLine) {
+        const reader = body.getReader();
+        const dec = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          onLine(dec.decode(value, { stream: true }));
+        }
+      }
+
+      // ─── HighlightedPrompt ──────────────────────────────────────────────
+
+      function HighlightedPrompt({ catalog, ...promptProps }) {
+        const wrapperRef = useRef(null);
+
+        useEffect(() => {
+          const wrapper = wrapperRef.current;
+          if (!wrapper || catalog.length === 0) return;
+
+          const terms = [];
+          const seen = new Set();
+          for (const t of catalog) {
+            const nl = t.name.toLowerCase();
+            if (nl.length >= 2 && !seen.has(nl)) {
+              terms.push(nl);
+              seen.add(nl);
+            }
+            const sl = (t.slug ?? "").toLowerCase();
+            if (sl.length >= 2 && !seen.has(sl)) {
+              terms.push(sl);
+              seen.add(sl);
+            }
+          }
+          terms.sort((a, b) => b.length - a.length);
+
+          const esc = (s) =>
+            s
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;");
+
+          const buildHTML = (text) => {
+            if (!text) return "";
+            const lower = text.toLowerCase();
+            const ranges = [];
+            for (const term of terms) {
+              let i = 0;
+              while ((i = lower.indexOf(term, i)) !== -1) {
+                ranges.push([i, i + term.length]);
+                i += term.length;
+              }
+            }
+            if (!ranges.length) return esc(text);
+            ranges.sort((a, b) => a[0] - b[0]);
+            const merged = [];
+            for (const r of ranges) {
+              const last = merged[merged.length - 1];
+              if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+              else merged.push([...r]);
+            }
+            let html = "",
+              c = 0;
+            for (const [s, e] of merged) {
+              html += esc(text.slice(c, s));
+              html += `<mark>${esc(text.slice(s, e))}</mark>`;
+              c = e;
+            }
+            return html + esc(text.slice(c));
+          };
+
+          const COPY_PROPS = [
+            "fontFamily",
+            "fontSize",
+            "fontWeight",
+            "fontStyle",
+            "fontVariant",
+            "fontStretch",
+            "lineHeight",
+            "letterSpacing",
+            "wordSpacing",
+            "textAlign",
+            "textIndent",
+            "textTransform",
+            "textDecoration",
+            "paddingTop",
+            "paddingRight",
+            "paddingBottom",
+            "paddingLeft",
+            "borderTopWidth",
+            "borderRightWidth",
+            "borderBottomWidth",
+            "borderLeftWidth",
+            "boxSizing",
+            "tabSize",
+            "direction",
+            "writingMode",
+          ];
+
+          let ta = null,
+            mirror = null,
+            disposed = false,
+            lastVal = "\0";
+          let origColor = "";
+
+          const setupMirror = () => {
+            origColor = getComputedStyle(ta).color;
+            mirror = document.createElement("div");
+            mirror.setAttribute("aria-hidden", "true");
+            wrapper.style.position = "relative";
+            wrapper.appendChild(mirror);
+            ta.style.color = "transparent";
+            ta.style.caretColor = origColor;
+            ta.addEventListener("scroll", () => {
+              if (!mirror) return;
+              if (ta.tagName === "INPUT") {
+                mirror.scrollLeft = ta.scrollLeft;
+              } else {
+                mirror.scrollTop = ta.scrollTop;
+              }
+            });
+          };
+
+          const syncMirror = () => {
+            if (!ta || !mirror) return;
+            const cs = getComputedStyle(ta);
+            const wRect = wrapper.getBoundingClientRect();
+            const tRect = ta.getBoundingClientRect();
+            const isInput = ta.tagName === "INPUT";
+            Object.assign(mirror.style, {
+              position: "absolute",
+              top: tRect.top - wRect.top + "px",
+              left: tRect.left - wRect.left + "px",
+              width: tRect.width + "px",
+              height: tRect.height + "px",
+              pointerEvents: "none",
+              overflow: "hidden",
+              whiteSpace: isInput ? "nowrap" : "pre-wrap",
+              wordWrap: isInput ? "normal" : "break-word",
+              overflowWrap: isInput ? "normal" : "break-word",
+              color: origColor,
+              background: "transparent",
+              borderStyle: cs.borderStyle,
+              borderColor: "transparent",
+              zIndex: "0",
+            });
+            for (const prop of COPY_PROPS) mirror.style[prop] = cs[prop];
+          };
+
+          const tick = () => {
+            if (disposed) return;
+            if (!ta) {
+              ta =
+                wrapper.querySelector("textarea") ||
+                wrapper.querySelector('input[type="text"]');
+              if (ta) setupMirror();
+            }
+            if (ta && mirror) {
+              syncMirror();
+              if (ta.value !== lastVal) {
+                lastVal = ta.value;
+                mirror.innerHTML = buildHTML(lastVal) || "\u200b";
+              }
+              // Sync scroll — horizontal for inputs, vertical for textareas
+              if (ta.tagName === "INPUT") {
+                mirror.scrollLeft = ta.scrollLeft;
+              } else {
+                mirror.scrollTop = ta.scrollTop;
+              }
+            }
+            requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+
+          return () => {
+            disposed = true;
+            if (ta) {
+              ta.style.color = "";
+              ta.style.caretColor = "";
+            }
+            mirror?.remove();
+          };
+        }, [catalog]);
+
+        return (
+          <div ref={wrapperRef} style={{ width: "100%" }}>
+            <PromptHero {...promptProps} />
+          </div>
+        );
+      }
+
+      // ─── App ─────────────────────────────────────────────────────────────
+
+      function App() {
+        // Catalog state
+        const [stacks, setStacks] = useState([]);
+        const approxStackCount = parseInt(Math.floor(stacks.length / 10)) * 10;
+        const [catalog, setCatalog] = useState([]);
+
+        // AI model state
+        // AI model state (reserved for future use)
+        // const [aiModel, setAiModel] = useState(AI_MODELS[0]);
+
+        // Conversation state
+        const [messages, setMessages] = useState([]);
+        const [phase, setPhase] = useState("idle"); // idle | analyzing | hitl | fetching | done
+        const [selections, setSelections] = useState({}); // saasSlug → stack
+        const [pendingHITL, setPendingHITL] = useState([]); // saasSlug[] needing user input
+        const [fetchedFiles, setFetchedFiles] = useState({}); // slug → { compose, env }
+        const [detailPopover, setDetailPopover] = useState(null); // { slug, name, link } | null
+        const [servicePopover, setServicePopover] = useState(null); // { slug, name, domain } | null
+        const [runProgress, setRunProgress] = useState({}); // slug → 'pending'|'running'|'live'|'error'
+        const [isRunning, setIsRunning] = useState(false);
+
+        // Refs for async flow
+        const convoRef = useRef(null);
+        const selectionsRef = useRef({});
+        selectionsRef.current = selections;
+
+        // ── Message helpers ──
+        const addMsg = useCallback((msg) => {
+          const m = { id: msgId(), ...msg };
+          setMessages((prev) => [...prev, m]);
+          return m.id;
+        }, []);
+
+        const updateMsg = useCallback((id, updates) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+          );
+        }, []);
+
+        // ── Auto-scroll ──
+        useEffect(() => {
+          if (convoRef.current) {
+            convoRef.current.scrollIntoView({
+              behavior: "smooth",
+              block: "end",
+            });
+          }
+        }, [messages]);
+
+        // ── Fetch stacks on mount ──
+        useEffect(() => {
+          fetch("./stacks.json")
+            .then((r) => r.json())
+            .then((data) => {
+              const items = data.items ?? [];
+              setStacks(items);
+              const saasTools = [
+                ...new Set(items.flatMap((s) => s.alternativeTo ?? [])),
+              ]
+                .map((slug) => ({ slug, name: saasDisplayName(slug) }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+              setCatalog(saasTools);
+            })
+            .catch(() => {});
+        }, []);
+
+        // ── Match SaaS tools from user text ──
+        const matchTools = (text) => {
+          const lower = text.toLowerCase();
+          return catalog.filter(
+            (t) =>
+              lower.includes(t.name.toLowerCase()) ||
+              lower.includes(t.slug.toLowerCase()),
+          );
+        };
+
+        // ── Find alternatives for a SaaS tool ──
+        const findAlternatives = (saasSlug) => {
+          return stacks
+            .filter((s) =>
+              (s.alternativeTo ?? []).some(
+                (a) => a.toLowerCase() === saasSlug.toLowerCase(),
+              ),
+            )
+            .sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0));
+        };
+
+        // ── HITL selection handler ──
+        const handleHITLSelect = (saasSlug, stack) => {
+          setSelections((prev) => ({ ...prev, [saasSlug]: stack }));
+          setPendingHITL((prev) => prev.filter((s) => s !== saasSlug));
+          // Mark the corresponding HITL message as non-thinking
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.type === "hitl" && m.saasSlug === saasSlug
+                ? { ...m, thinking: false }
+                : m,
+            ),
+          );
+        };
+
+        // ── Watch for HITL completion → proceed to fetch ──
+        useEffect(() => {
+          if (phase === "hitl" && pendingHITL.length === 0) {
+            // Brief delay before proceeding
+            const timer = setTimeout(() => {
+              addMsg({
+                role: "ai",
+                agent: "Exodus",
+                type: "text",
+                thinking: false,
+                text: "All selections confirmed. Let me grab the setup files for you.",
+              });
+              proceedToFetch(selectionsRef.current);
+            }, 600);
+            return () => clearTimeout(timer);
+          }
+        }, [phase, pendingHITL]);
+
+        // ── Fetch compose files from GitHub ──
+        const proceedToFetch = async (allSelections) => {
+          setPhase("fetching");
+
+          const slugs = [
+            ...new Set(Object.values(allSelections).map((s) => s.slug)),
+          ];
+
+          const fetchMsgId = addMsg({
+            role: "ai",
+            agent: "Exodus",
+            type: "fetch-progress",
+            thinking: "fetching stack files from GitHub…",
+            slugs,
+            results: {},
+          });
+
+          const files = {};
+
+          for (const slug of slugs) {
+            const base = `${GITHUB_BASE}/${slug}`;
+            files[slug] = {};
+
+            try {
+              const r = await fetch(`${base}/compose.yaml`);
+              if (r.ok) files[slug].compose = await r.text();
+            } catch {}
+
+            try {
+              const r = await fetch(`${base}/.env`);
+              if (r.ok) files[slug].env = await r.text();
+            } catch {}
+
+            // Parse compose.yaml for additional env_file entries
+            if (files[slug].compose) {
+              const envFileMatches = [
+                ...files[slug].compose.matchAll(
+                  /(?:env_file:\s*|\-\s+)(\.[a-zA-Z0-9._-]+\.env|[a-zA-Z0-9._-]+\.env)/gm,
+                ),
+              ].map((m) => m[1]);
+              if (envFileMatches.length > 0) {
+                for (const envPath of envFileMatches) {
+                  if (envPath && envPath !== ".env" && !files[slug][envPath]) {
+                    try {
+                      const r = await fetch(`${base}/${envPath}`);
+                      if (r.ok) files[slug][envPath] = await r.text();
+                    } catch {}
+                  }
+                }
+              }
+            }
+
+            // Update progress in real time
+            updateMsg(fetchMsgId, {
+              results: { ...files },
+            });
+          }
+
+          setFetchedFiles(files);
+
+          updateMsg(fetchMsgId, {
+            thinking: false,
+            results: files,
+          });
+
+          await delay(400);
+
+          // Add the recipe message
+          addMsg({
+            role: "ai",
+            agent: "Exodus",
+            type: "recipe",
+            allSelections,
+            files,
+          });
+
+          setPhase("done");
+        };
+
+        // ── Download helpers ──
+        const downloadCompose = (files) => {
+          const merged = Object.entries(files)
+            .filter(([_, f]) => f.compose)
+            .map(
+              ([slug, f]) =>
+                `# ════════════════════════════════════════\n# ${slug}\n# ════════════════════════════════════════\n\n${f.compose}`,
+            )
+            .join("\n\n");
+          downloadFile(merged, "docker-compose.yml");
+        };
+
+        const downloadEnv = (files) => {
+          const merged = Object.entries(files)
+            .filter(([_, f]) => f.env)
+            .map(([slug, f]) => `# ── ${slug} ──\n${f.env}`)
+            .join("\n\n");
+          downloadFile(merged, ".env");
+        };
+
+        // ── Run all stacks via Stack Desktop app ──
+        const handleRunAll = async (allSelections) => {
+          const appRunning = await isStackAppRunning();
+          if (!appRunning) {
+            addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "text",
+              thinking: false,
+              text: "The **Stack Desktop app** isn't running. Open it first, then try again. [Get it here](https://stack.lol/download).",
+            });
+            return;
+          }
+
+          setIsRunning(true);
+          const slugs = [
+            ...new Set(Object.values(allSelections).map((s) => s.slug)),
+          ];
+
+          // Initialize progress
+          const initial = {};
+          for (const s of slugs) initial[s] = "pending";
+          setRunProgress(initial);
+
+          const runMsgId = addMsg({
+            role: "ai",
+            agent: "Exodus",
+            type: "run-progress",
+            thinking: "starting your stacks…",
+            slugs,
+            logs: {},
+          });
+
+          const allLogs = {};
+
+          for (const slug of slugs) {
+            setRunProgress((prev) => ({ ...prev, [slug]: "running" }));
+            allLogs[slug] = "";
+            try {
+              const body = await runStackFromCatalog(slug);
+              await streamLogs(body, (chunk) => {
+                allLogs[slug] += chunk;
+                updateMsg(runMsgId, { logs: { ...allLogs } });
+              });
+              setRunProgress((prev) => ({ ...prev, [slug]: "live" }));
+            } catch (err) {
+              allLogs[slug] += `\n⚠ Error: ${err.message}`;
+              updateMsg(runMsgId, { logs: { ...allLogs } });
+              setRunProgress((prev) => ({ ...prev, [slug]: "error" }));
+            }
+          }
+
+          updateMsg(runMsgId, { thinking: false });
+          setIsRunning(false);
+        };
+
+        // ── The Agent ──
+        const runAgent = async (text) => {
+          // Reset state
+          setMessages([]);
+          setSelections({});
+          setPendingHITL([]);
+          setFetchedFiles({});
+          setRunProgress({});
+          setIsRunning(false);
+          selectionsRef.current = {};
+          setPhase("analyzing");
+
+          await delay(50); // Let state flush
+
+          // Step 1: User message
+          addMsg({ role: "user", type: "text", text });
+
+          await delay(600);
+
+          // Step 2: Analyze
+          const thinkId = addMsg({
+            role: "ai",
+            agent: "Exodus",
+            type: "text",
+            thinking: "analyzing your tools…",
+            text: "",
+          });
+
+          await delay(1200);
+
+          const matched = matchTools(text);
+
+          if (matched.length === 0) {
+            // Try AI fallback
+            updateMsg(thinkId, {
+              thinking: false,
+              text: 'I couldn\'t identify any SaaS tools in your message. Try mentioning specific tools — for example: "We use Notion, Slack, and Jira" or "Datadog, GitHub, Vercel".',
+            });
+            setPhase("idle");
+            return;
+          }
+
+          // Deduplicate
+          const uniqueMatched = [];
+          const seenSlugs = new Set();
+          for (const t of matched) {
+            if (!seenSlugs.has(t.slug)) {
+              seenSlugs.add(t.slug);
+              uniqueMatched.push(t);
+            }
+          }
+
+          updateMsg(thinkId, {
+            thinking: false,
+            text: `I identified **${uniqueMatched.length}** tool${uniqueMatched.length > 1 ? "s" : ""}: ${uniqueMatched.map((t) => `**${t.name}**`).join(", ")}. Let me find the best open-source alternatives.`,
+          });
+
+          // Step 3: Recommend alternatives for each tool
+          const newSelections = {};
+          const newPendingHITL = [];
+
+          for (const tool of uniqueMatched) {
+            await delay(700);
+
+            const candidates = findAlternatives(tool.slug);
+            const strongCandidates = candidates.filter(
+              (c) => (c.stars ?? 0) >= STRONG_THRESHOLD,
+            );
+
+            if (candidates.length === 0) {
+              addMsg({
+                role: "ai",
+                agent: "Exodus",
+                type: "text",
+                thinking: false,
+                text: `No open-source alternative found for **${tool.name}** in the catalog yet.`,
+              });
+            } else if (strongCandidates.length <= 1) {
+              // Auto-select best candidate
+              const best = strongCandidates[0] || candidates[0];
+              newSelections[tool.slug] = best;
+              const autoId = addMsg({
+                role: "ai",
+                agent: "Exodus",
+                type: "auto-select",
+                thinking: "selecting…",
+                saasSlug: tool.slug,
+                saasName: tool.name,
+                stack: best,
+                isStrong: (best.stars ?? 0) >= STRONG_THRESHOLD,
+              });
+              await delay(500);
+              updateMsg(autoId, { thinking: false });
+            } else {
+              // Multiple strong candidates → HITL
+              newPendingHITL.push(tool.slug);
+              addMsg({
+                role: "ai",
+                agent: "Exodus",
+                type: "hitl",
+                thinking: "waiting for your choice…",
+                saasSlug: tool.slug,
+                saasName: tool.name,
+                candidates: strongCandidates,
+              });
+            }
+          }
+
+          setSelections(newSelections);
+          selectionsRef.current = newSelections;
+          setPendingHITL(newPendingHITL);
+
+          if (newPendingHITL.length > 0) {
+            setPhase("hitl");
+            // useEffect watches for HITL completion
+          } else if (Object.keys(newSelections).length > 0) {
+            // No HITL needed, proceed directly
+            await delay(600);
+            addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "text",
+              thinking: false,
+              text: "All alternatives selected. Let me grab the setup files for you.",
+            });
+            proceedToFetch(newSelections);
+          }
+        };
+
+        // ── Submit handler ──
+        const handleSubmit = (text) => {
+          runAgent(text);
+        };
+
+        // ── Render a single message ──
+        const renderMessage = (msg) => {
+          switch (msg.type) {
+            case "text":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  icon={msg.agent === "Exodus" ? "❖" : undefined}
+                  role={msg.role}
+                  agent={msg.agent}
+                  thinking={msg.thinking}
+                >
+                  {msg.text && renderMarkdown(msg.text)}
+                </ChatBubble>
+              );
+
+            case "auto-select":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  <p style={{ margin: "0 0 12px" }}>
+                    For replacing <strong>{msg.saasName}</strong>, I recommend:
+                  </p>
+                  <GlassCard>
+                    <GlassCard.Icon>
+                      <img
+                        alt={`${msg.stack.name} logo`}
+                        style={{
+                          filter: "var(--pui-logo-filter)",
+                          width: 32,
+                          height: 32,
+                          borderRadius: 6,
+                        }}
+                        src={`https://esm.sh/simple-icons@11/icons/${msg.stack.name.toLowerCase().replaceAll(" ", "")}.svg`}
+                        onError={(e) => {
+                          e.currentTarget.parentNode.innerHTML = "✓";
+                        }}
+                      />
+                    </GlassCard.Icon>
+                    <GlassCard.Title>{msg.stack.name}</GlassCard.Title>
+                    <GlassCard.Body>
+                      {msg.stack.description}
+                      <br />
+                      <span style={{ color: "#a8a8b3", fontSize: "0.85rem" }}>
+                        ★ {(msg.stack.stars ?? 0).toLocaleString()} stars ·{" "}
+                        {msg.stack.license}
+                      </span>
+                    </GlassCard.Body>
+                    <button
+                      onClick={() =>
+                        setDetailPopover({
+                          slug: msg.stack.slug,
+                          name: msg.stack.name,
+                          link: msg.stack.link,
+                        })
+                      }
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "#8a8a96",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "4px 0 0",
+                        textDecoration: "underline",
+                        textUnderlineOffset: "2px",
+                        textAlign: "left",
+                      }}
+                    >
+                      View on stack.lol →
+                    </button>
+                  </GlassCard>
+                  <p
+                    style={{
+                      margin: "8px 0 0",
+                      color: "#22c55e",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    ✓ Auto-selected{" "}
+                    {msg.isStrong ? "(top-rated)" : "(best available)"}
+                  </p>
+                </ChatBubble>
+              );
+
+            case "hitl":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  <p style={{ margin: "0 0 12px" }}>
+                    I found{" "}
+                    <GradientText>
+                      {msg.candidates.length} strong alternatives
+                    </GradientText>{" "}
+                    to <strong>{msg.saasName}</strong>. Which one fits your team
+                    best?
+                  </p>
+                  <div style={styles.hitlGrid}>
+                    {msg.candidates.map((c) => {
+                      const isSelected =
+                        selections[msg.saasSlug]?.slug === c.slug;
+                      return (
+                        <div
+                          key={c.slug}
+                          style={{
+                            ...styles.hitlCard,
+                            borderColor: isSelected
+                              ? "color-mix(in srgb, var(--pui-grad-from) 50%, transparent)"
+                              : "rgba(255,255,255,0.08)",
+                            background: isSelected
+                              ? "color-mix(in srgb, var(--pui-grad-from) 8%, transparent)"
+                              : "rgba(255,255,255,0.03)",
+                          }}
+                        >
+                          <div style={styles.hitlCardHeader}>
+                            <strong>{c.name}</strong>
+                            <span
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#a8a8b3",
+                              }}
+                            >
+                              ★ {(c.stars ?? 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <p
+                            style={{
+                              fontSize: "0.85rem",
+                              color: "#a8a8b3",
+                              margin: "4px 0 8px",
+                            }}
+                          >
+                            {c.description}
+                          </p>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Button
+                              variant={isSelected ? "glow" : "ghost"}
+                              size="sm"
+                              onClick={() => handleHITLSelect(msg.saasSlug, c)}
+                            >
+                              {isSelected ? "✓ Selected" : "Select"}
+                            </Button>
+                            <button
+                              onClick={() =>
+                                setDetailPopover({
+                                  slug: c.slug,
+                                  name: c.name,
+                                  link: c.link,
+                                })
+                              }
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#8a8a96",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                textDecoration: "underline",
+                                textUnderlineOffset: "2px",
+                              }}
+                            >
+                              details →
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ChatBubble>
+              );
+
+            case "fetch-progress":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  {msg.slugs && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      {msg.slugs.map((slug) => {
+                        const r = msg.results?.[slug];
+                        const hasCompose = r?.compose;
+                        const hasEnv = r?.env;
+                        const done = r && (hasCompose || hasEnv);
+                        return (
+                          <div
+                            key={slug}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            <StatusDot
+                              color={done ? "#22c55e" : "#f59e0b"}
+                              static={done}
+                            />
+                            <span style={{ fontWeight: 600 }}>{slug}</span>
+                            {done && (
+                              <span
+                                style={{ color: "#8a8a96", fontSize: "0.8rem" }}
+                              >
+                                {hasCompose ? "compose.yaml ✓" : ""}{" "}
+                                {hasEnv ? ".env ✓" : ""}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </ChatBubble>
+              );
+
+            case "recipe": {
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={false}
+                >
+                  <p style={{ margin: "0 0 16px" }}>
+                    <GradientText>
+                      <Sparkle static solid glyph="❖" /> Your self-hosted stack
+                      is ready.
+                    </GradientText>
+                  </p>
+
+                  {/* Summary table with service links */}
+                  <div style={styles.recipeTable}>
+                    {Object.entries(msg.allSelections).map(
+                      ([saasSlug, stack]) => {
+                        const domain = `${stack.slug}.stack.localhost`;
+                        const status = runProgress[stack.slug];
+                        const dotColor =
+                          status === "live"
+                            ? "#22c55e"
+                            : status === "running"
+                              ? "#f59e0b"
+                              : "#8a8a96";
+                        return (
+                          <div key={saasSlug} style={styles.recipeRow}>
+                            <span style={styles.recipeOss}>
+                              <StatusDot
+                                color={dotColor}
+                                static={!status || status === "live"}
+                              />{" "}
+                              {stack.name}
+                            </span>
+                            <span style={styles.recipeReplaces}>
+                              replaces {saasDisplayName(saasSlug)}
+                            </span>
+                            {status === "live" && (
+                              <button
+                                onClick={() =>
+                                  setServicePopover({
+                                    slug: stack.slug,
+                                    name: stack.name,
+                                    domain,
+                                  })
+                                }
+                                style={styles.serviceLink}
+                              >
+                                Try it out →
+                              </button>
+                            )}
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+
+                  {/* Expandable file previews */}
+                  {Object.entries(msg.files).map(([slug, f]) => (
+                    <details key={slug} style={styles.fileDetails}>
+                      <summary style={styles.fileSummary}>
+                        📦 {slug}
+                        {f.compose && (
+                          <span style={styles.fileBadge}>compose.yaml</span>
+                        )}
+                        {f.env && <span style={styles.fileBadge}>.env</span>}
+                      </summary>
+                      {f.compose && (
+                        <MockIDE
+                          filename={`${slug}/compose.yaml`}
+                          tokens={[{ c: f.compose }]}
+                          charMs={[0, 0]}
+                          loop={false}
+                          thinkingLabel={false}
+                        />
+                      )}
+                      {f.env && (
+                        <MockIDE
+                          filename={`${slug}/.env`}
+                          tokens={[{ c: f.env }]}
+                          charMs={[0, 0]}
+                          loop={false}
+                          thinkingLabel={false}
+                        />
+                      )}
+                    </details>
+                  ))}
+
+                  {/* Action buttons */}
+                  <div style={styles.downloadRow}>
+                    <Button
+                      variant="glow"
+                      size="sm"
+                      sparkle
+                      loading={isRunning}
+                      onClick={() => handleRunAll(msg.allSelections)}
+                    >
+                      ▶ Run all stacks
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => downloadCompose(msg.files)}
+                    >
+                      Download compose
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => downloadEnv(msg.files)}
+                    >
+                      Download .env
+                    </Button>
+                  </div>
+                </ChatBubble>
+              );
+            }
+
+            case "run-progress":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    {msg.slugs.map((slug) => {
+                      const status = runProgress[slug] ?? "pending";
+                      const color =
+                        status === "live"
+                          ? "#22c55e"
+                          : status === "error"
+                            ? "#ef4444"
+                            : status === "running"
+                              ? "#f59e0b"
+                              : "#8a8a96";
+                      const label =
+                        status === "live"
+                          ? "live"
+                          : status === "error"
+                            ? "error"
+                            : status === "running"
+                              ? "starting…"
+                              : "pending";
+                      return (
+                        <div key={slug}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            <StatusDot
+                              color={color}
+                              static={status === "live" || status === "error"}
+                            />
+                            <strong>{slug}</strong>
+                            <span
+                              style={{
+                                color,
+                                fontSize: "0.8rem",
+                                marginLeft: "auto",
+                              }}
+                            >
+                              {label}
+                            </span>
+                            {status === "live" && (
+                              <button
+                                onClick={() =>
+                                  setServicePopover({
+                                    slug,
+                                    name: slug,
+                                    domain: `${slug}.stack.localhost`,
+                                  })
+                                }
+                                style={{
+                                  ...styles.serviceLink,
+                                  fontSize: "0.75rem",
+                                }}
+                              >
+                                Try it out →
+                              </button>
+                            )}
+                          </div>
+                          {msg.logs?.[slug] && (
+                            <pre
+                              style={{
+                                ...styles.filePre,
+                                maxHeight: 80,
+                                marginTop: 4,
+                                fontSize: "0.7rem",
+                              }}
+                            >
+                              {msg.logs[slug]}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ChatBubble>
+              );
+
+            default:
+              return null;
+          }
+        };
+
+        // ── Minimal markdown (bold only) ──
+        const renderMarkdown = (text) => {
+          const html = marked.parseInline(text);
+          return <span dangerouslySetInnerHTML={{ __html: html }} />;
+        };
+
+        // ── Render ──
+        return (
+          <div style={styles.page}>
+            {/* ─── Announcement bar ─── */}
+            <StickyBanner
+              hideSparkle
+              trailing={<a href="https://superai.com">View contest →</a>}
+            >
+              🏆 Built <a href="https://github.com/arnaud">solo</a> at SuperAI
+              NEXT Hackathon '26, Singapore
+            </StickyBanner>
+
+            {/* ─── Hero ─── */}
+            <section style={{ position: "relative", overflow: "hidden" }}>
+              <Aurora animated />
+              <div
+                style={{
+                  ...styles.section,
+                  paddingBottom: 0,
+                  marginBottom: -16,
+                  paddingTop: 16,
+                }}
+              >
+                <h1 style={styles.brand}>
+                  <Sparkle static solid glyph="❖" /> Exodus
+                </h1>
+              </div>
+
+              <div style={{ ...styles.hero, marginBottom: -32 }} id="picker">
+                <div style={styles.heroInner}>
+                  <h1 style={styles.h1}>
+                    Stop paying rent on
+                    <br />
+                    <GradientText>
+                      <WordRoll
+                        key={catalog.length > 0 ? "catalog" : "static"}
+                        words={(() => {
+                          if (catalog.length === 0) {
+                            // Initial static list before catalog loads
+                            return [
+                              "Notion",
+                              "Linear",
+                              "Datadog",
+                              "Slack",
+                              "Google Drive",
+                            ];
+                          }
+                          // Top 12 SaaS tools by total stars of their alternatives
+                          const saasStars = {};
+                          for (const s of stacks) {
+                            for (const a of s.alternativeTo ?? []) {
+                              saasStars[a] =
+                                (saasStars[a] ?? 0) + (s.stars ?? 0);
+                            }
+                          }
+                          return Object.entries(saasStars)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 12)
+                            .map(([slug]) => saasDisplayName(slug));
+                        })().map((name) => (
+                          <>
+                            {/* <img
+                              className="inline-flex w-10 h-10 align-middle mr-3 mb-2"
+                              style={{
+                                filter: "var(--pui-logo-filter)",
+                              }}
+                              src={`https://esm.sh/simple-icons@11/icons/${name.toLowerCase().replaceAll(" ", "")}.svg`}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                              title={name}
+                            />*/}
+                            {name}
+                          </>
+                        ))}
+                        gradient
+                      />
+                    </GradientText>
+                  </h1>
+
+                  <p style={styles.lede}>
+                    Tell Exodus which tools you pay for. The agent finds free,
+                    sovereign <strong>open source alternatives</strong> &amp;
+                    hands you a <strong>ready-to-run stack</strong>.
+                  </p>
+
+                  <HighlightedPrompt
+                    catalog={catalog}
+                    placeholder="Which tools are you paying for? (e.g. Notion, Slack, Datadog, Jira…)"
+                    ctaLabel="Build my stack"
+                    onSubmit={handleSubmit}
+                  />
+
+                  {/* <p style={styles.heroFootnote}>
+                    {catalog.length > 0 && (
+                      <>
+                        {catalog.length} SaaS tools recognized · {stacks.length}{" "}
+                        open-source alternatives in the catalog
+                      </>
+                    )}
+                  </p>*/}
+                </div>
+              </div>
+            </section>
+
+            {/* ─── Conversation ─── */}
+            {messages.length > 0 && (
+              <section style={styles.section} id="conversation">
+                {/* <div style={styles.center}>
+                  <EyebrowPill>Agent conversation</EyebrowPill>
+                </div>*/}
+
+                <div style={styles.convoWrap} ref={convoRef}>
+                  {messages.map(renderMessage)}
+
+                  {/* HITL status bar */}
+                  {phase === "hitl" && pendingHITL.length > 0 && (
+                    <div style={styles.hitlStatus}>
+                      <Sparkle />
+                      <span>
+                        Waiting for your selection on{" "}
+                        <strong>
+                          {pendingHITL
+                            .map((s) => saasDisplayName(s))
+                            .join(", ")}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* ─── How it works ─── */}
+            <section style={styles.section} id="how-it-works">
+              <div style={styles.center}>
+                <EyebrowPill icon={false}>How it works</EyebrowPill>
+                <h2 style={styles.h2}>
+                  Describe <em>your stack</em>. The agent does the rest.{" "}
+                  <GradientText>You approve every decision.</GradientText>
+                </h2>
+              </div>
+
+              <div style={styles.cardGrid}>
+                <GlassCard breathing glowOnHover data-numbering="1">
+                  <GlassCard.Title>
+                    Tell the agent what you pay for
+                  </GlassCard.Title>
+                  <GlassCard.Body>
+                    Type the tools your team uses — Notion, Slack, Jira,
+                    Datadog, whatever. The agent identifies each one from a
+                    catalog of {catalog.length}+ SaaS products.
+                  </GlassCard.Body>
+                  <GlassCard.Link href="#picker">Try it now</GlassCard.Link>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover data-numbering="2">
+                  <GlassCard.Title>
+                    Review & choose alternatives
+                  </GlassCard.Title>
+                  <GlassCard.Body>
+                    The agent recommends the best open-source replacement for
+                    each tool. When facing multiple strong candidates,{" "}
+                    <strong>you pick the winner</strong> — the agent never
+                    decides for you on close calls.
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover data-numbering="3">
+                  <GlassCard.Title>Get your stack</GlassCard.Title>
+                  <GlassCard.Body>
+                    The agent packages everything you need into a ready-to-run
+                    bundle. Download it and launch your tools in minutes.
+                  </GlassCard.Body>
+                </GlassCard>
+              </div>
+            </section>
+
+            {/* ─── Social proof ─── */}
+            <section style={styles.section}>
+              <p style={styles.marqueeCaption}>
+                All these tools are intended to be replaced:
+              </p>
+              <LogoMarquee
+                pauseOnHover
+                speed={90}
+                logos={(() => {
+                  // Top 30 SaaS tools by total stars of their OSS alternatives
+                  const saasStars = {};
+                  for (const s of stacks) {
+                    for (const a of s.alternativeTo ?? []) {
+                      saasStars[a] = (saasStars[a] ?? 0) + (s.stars ?? 0);
+                    }
+                  }
+                  return Object.entries(saasStars)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 24)
+                    .map(([slug]) => {
+                      const name = saasDisplayName(slug);
+                      return {
+                        kind: "node",
+                        node: (
+                          <span style={styles.logo}>
+                            <img
+                              className="inline-flex w-1 h-1 mr-2"
+                              src={`https://esm.sh/simple-icons@11/icons/${slug.toLowerCase().replaceAll(" ", "")}.svg`}
+                              title={name}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                            {name}
+                          </span>
+                        ),
+                        key: slug,
+                      };
+                    });
+                })()}
+              />
+            </section>
+
+            {/* ─── Pricing ─── */}
+            <section style={styles.section} id="pricing">
+              <div style={styles.center}>
+                <EyebrowPill icon={false}>Pricing</EyebrowPill>
+                <h2 style={styles.h2}>
+                  Your alternatives are free. Exodus helps you get there.{" "}
+                  <GradientText>It pays for itself in days.</GradientText>
+                </h2>
+              </div>
+
+              <div style={styles.pricingGrid}>
+                <PricingCard>
+                  <PricingCard.Tier>DIY</PricingCard.Tier>
+                  <PricingCard.Amount>Free</PricingCard.Amount>
+                  <PricingCard.Blurb>
+                    Compose &amp; run your stack on your own machine, for free.
+                  </PricingCard.Blurb>
+                  <PricingCard.Features>
+                    <li>Compose your stack with agentic</li>
+                    <li>Download your own Docker stack</li>
+                    <li>Technical setup required</li>
+                  </PricingCard.Features>
+                  <PricingCard.CTA href="#picker">Get started</PricingCard.CTA>
+                </PricingCard>
+
+                <PricingCard featured>
+                  <PricingCard.Flag hideSparkle>Peace of mind</PricingCard.Flag>
+                  <PricingCard.Tier>Hosted Cloud</PricingCard.Tier>
+                  <PricingCard.Amount unit="once, per stack">
+                    $9
+                  </PricingCard.Amount>
+                  <PricingCard.Blurb>
+                    Let us handle the hosting on your cloud of choice.
+                    Maintenance is yours.
+                  </PricingCard.Blurb>
+                  <PricingCard.Features>
+                    <li>Everything in Free</li>
+                    <li>One-click deploy to AWS</li>
+                    <li>Secure + deployment receipt</li>
+                  </PricingCard.Features>
+                  <PricingCard.CTA href="#picker">Get started</PricingCard.CTA>
+                </PricingCard>
+
+                <PricingCard>
+                  <PricingCard.Flag hideSparkle>
+                    Lazy cost-cutting
+                  </PricingCard.Flag>
+                  <PricingCard.Tier>Fully Managed</PricingCard.Tier>
+                  <PricingCard.Amount unit="per month, per server">
+                    $99
+                  </PricingCard.Amount>
+                  <PricingCard.Blurb>
+                    We host and maintain your stack for you. Focus on your work,
+                    not server upkeep.
+                  </PricingCard.Blurb>
+                  <PricingCard.Features>
+                    <li>Everything in Hosted Cloud</li>
+                    <li>Managed updates, security &amp; uptime</li>
+                    <li>24/7 monitoring and support</li>
+                  </PricingCard.Features>
+                  <PricingCard.CTA href="mailto:arnaud@codename.co?subject=Exodus%20-%20Fully%20managed%20plan">
+                    Contact Us
+                  </PricingCard.CTA>
+                </PricingCard>
+              </div>
+            </section>
+
+            {/* ─── Closer ─── */}
+            <section style={{ ...styles.section, ...styles.closer }}>
+              <h2 style={styles.h2}>
+                Your tools. Your data.
+                <br />
+                <GradientText>No more monthly fees.</GradientText>
+              </h2>
+              <Button variant="glow" size="lg" sparkle as="a" href="#picker">
+                Build my stack — free
+              </Button>
+            </section>
+
+            {/* ─── Footer ─── */}
+            <footer style={styles.footer}>
+              <div style={styles.footerInner}>
+                {/* Brand column */}
+                <div style={styles.footerCol}>
+                  <p style={styles.footerBrand}>
+                    <Sparkle static solid glyph="❖" /> Exodus
+                  </p>
+                  <p style={styles.footerMuted}>
+                    Stop paying rent on software you can own.
+                  </p>
+                </div>
+
+                {/* Navigation column */}
+                <div style={styles.footerCol}>
+                  <p style={styles.footerHeading}>Product</p>
+                  <a href="#picker" style={styles.footerLink}>
+                    Build my stack
+                  </a>
+                  <a href="#how-it-works" style={styles.footerLink}>
+                    How it works
+                  </a>
+                  <a href="#pricing" style={styles.footerLink}>
+                    Pricing
+                  </a>
+                </div>
+
+                {/* Community column */}
+                <div style={styles.footerCol}>
+                  <p style={styles.footerHeading}>Community</p>
+                  <a
+                    href="https://github.com/arnaud/exodus"
+                    target="_blank"
+                    style={styles.footerLink}
+                  >
+                    GitHub
+                  </a>
+                  <a
+                    href="https://stack.lol"
+                    target="_blank"
+                    style={styles.footerLink}
+                  >
+                    stack.lol
+                  </a>
+                </div>
+
+                {/* Badges column */}
+                <div style={styles.footerCol}>
+                  <CommunityBadge
+                    icon="https://esm.sh/simple-icons@11/icons/github.svg"
+                    title="Star us on GitHub"
+                    href="https://github.com/arnaud/exodus"
+                  />
+                  <CommunityBadge
+                    icon="https://esm.sh/simple-icons@11/icons/docker.svg"
+                    title={`${approxStackCount || "…"}+ alternatives`}
+                    subtitle={<>Tested &amp; ready to run</>}
+                    href="https://stack.lol"
+                  />
+                </div>
+              </div>
+
+              <div style={styles.footerBottom}>
+                <span>© {new Date().getFullYear()} Exodus</span>
+                <span style={styles.footerMuted}>
+                  Built at SuperAI NEXT Hackathon
+                </span>
+              </div>
+            </footer>
+
+            {/* ─── Detail Popover ─── */}
+            {detailPopover && (
+              <Popover
+                open={!!detailPopover}
+                onOpenChange={(open) => {
+                  if (!open) setDetailPopover(null);
+                }}
+                title={detailPopover.name}
+                closeLabel="Close"
+                closeOnEscape
+                closeOnBackdrop
+              >
+                <iframe
+                  src={`https://stack.lol${detailPopover.link}`}
+                  style={{
+                    width: "100%",
+                    height: "70vh",
+                    border: "none",
+                    borderRadius: 8,
+                    background: "#111",
+                  }}
+                  title={`${detailPopover.name} on stack.lol`}
+                />
+              </Popover>
+            )}
+
+            {/* ─── Service Popover ─── */}
+            {servicePopover && (
+              <Popover
+                open={!!servicePopover}
+                onOpenChange={(open) => {
+                  if (!open) setServicePopover(null);
+                }}
+                title={
+                  <>
+                    <img
+                      className="inline-flex w-6 h-6 align-middle mr-2"
+                      style={{
+                        filter: "var(--pui-logo-filter)",
+                      }}
+                      src={`https://esm.sh/simple-icons@11/icons/${servicePopover.slug.toLowerCase().replaceAll(" ", "")}.svg`}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                      title={servicePopover.name}
+                    />
+                    {servicePopover.name}
+                  </>
+                }
+                closeLabel="Close"
+                closeOnEscape
+                closeOnBackdrop
+              >
+                <iframe
+                  src={`https://${servicePopover.domain}`}
+                  style={{
+                    width: "100%",
+                    height: "70vh",
+                    border: "none",
+                    borderRadius: 8,
+                    background: "#111",
+                  }}
+                  title={`${servicePopover.name} running at ${servicePopover.domain}`}
+                />
+              </Popover>
+            )}
+
+            {/* ─── ChatFAB ─── */}
+            {/*
+            <ChatFAB
+              label="Ask Exodus"
+              defaultOpen
+              popover={
+                <>
+                  <ChatFAB.Header>Hi, I'm Exodus.</ChatFAB.Header>
+                  <ChatFAB.Body>
+                    Tell me which tools you pay for and I'll find the free
+                    alternatives — fetch the compose files — and hand you a
+                    ready-to-run stack. You approve every choice.
+                  </ChatFAB.Body>
+                </>
+              }
+            />
+            */}
+          </div>
+        );
+      }
+
+      // ─── Styles ──────────────────────────────────────────────────────────
+
+      const styles = {
+        page: {
+          fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+          color: "#e7e7ea",
+          background: "#0a0a0f",
+          minHeight: "100vh",
+        },
+        section: {
+          maxWidth: 1100,
+          margin: "0 auto",
+          padding: "80px 24px",
+        },
+        hero: { paddingTop: 120, paddingBottom: 120 },
+        heroInner: {
+          position: "relative",
+          maxWidth: 760,
+          margin: "0 auto",
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 24,
+        },
+        brand: {
+          fontSize: "1.4rem",
+          lineHeight: 1.1,
+          fontWeight: 500,
+        },
+        h1: {
+          fontSize: "clamp(2.2rem, 5vw, 3.6rem)",
+          lineHeight: 1.1,
+          fontWeight: 800,
+          margin: 0,
+        },
+        h2: {
+          fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)",
+          lineHeight: 1.2,
+          fontWeight: 700,
+          margin: "12px 0 0",
+        },
+        lede: {
+          fontSize: "1.15rem",
+          lineHeight: 1.6,
+          color: "#a8a8b3",
+          maxWidth: 640,
+          margin: "0 auto",
+        },
+        heroFootnote: {
+          fontSize: "0.95rem",
+          color: "#8a8a96",
+        },
+        center: {
+          textAlign: "center",
+          maxWidth: 720,
+          margin: "0 auto 48px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 8,
+        },
+        cardGrid: {
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 24,
+        },
+        logo: {
+          fontSize: "1.25rem",
+          fontWeight: 700,
+          color: "#c9c9d4",
+          whiteSpace: "nowrap",
+        },
+        marqueeCaption: {
+          textAlign: "center",
+          color: "#8a8a96",
+          marginBottom: 16,
+        },
+
+        // ─── Conversation ───
+        convoWrap: {
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          maxWidth: 780,
+          margin: "0 auto",
+        },
+
+        // ─── HITL ───
+        hitlGrid: {
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          gap: 12,
+          marginTop: 8,
+        },
+        hitlCard: {
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 12,
+          padding: "16px",
+          transition: "all 0.2s ease",
+        },
+        hitlCardHeader: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        },
+        hitlStatus: {
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "12px 16px",
+          background: "rgba(245,158,11,0.08)",
+          border: "1px solid rgba(245,158,11,0.25)",
+          borderRadius: 10,
+          fontSize: "0.9rem",
+          color: "#f59e0b",
+        },
+
+        // ─── Recipe ───
+        recipeTable: {
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          marginBottom: 16,
+          fontFamily: "JetBrains Mono, ui-monospace, monospace",
+          fontSize: "0.9rem",
+        },
+        recipeRow: {
+          display: "grid",
+          gridTemplateColumns: "1.2fr 1.5fr 0.8fr",
+          alignItems: "center",
+          gap: 12,
+          padding: "10px 12px",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 8,
+        },
+        recipeOss: {
+          fontWeight: 600,
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        },
+        recipeReplaces: { color: "#a8a8b3" },
+        recipeStars: {
+          textAlign: "right",
+          color: "#8a8a96",
+          fontSize: "0.8rem",
+        },
+        serviceLink: {
+          fontSize: "0.8rem",
+          color: "#67e8f9",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: 0,
+          textDecoration: "underline",
+          textUnderlineOffset: "2px",
+          fontFamily: "JetBrains Mono, ui-monospace, monospace",
+          textAlign: "right",
+        },
+
+        // ─── Files ───
+        fileDetails: {
+          marginBottom: 8,
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 8,
+          overflow: "hidden",
+        },
+        fileSummary: {
+          cursor: "pointer",
+          padding: "10px 12px",
+          color: "#c9c9d4",
+          fontSize: "0.9rem",
+          background: "rgba(255,255,255,0.03)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        },
+        fileBadge: {
+          fontSize: "0.7rem",
+          padding: "2px 6px",
+          borderRadius: 4,
+          background: "rgba(124,58,237,0.2)",
+          color: "#a78bfa",
+        },
+        filePre: {
+          fontSize: "0.75rem",
+          overflow: "auto",
+          maxHeight: 200,
+          padding: "12px",
+          margin: 0,
+          background: "rgba(0,0,0,0.3)",
+          color: "#a8a8b3",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+        },
+        downloadRow: {
+          display: "flex",
+          gap: 12,
+          marginTop: 16,
+          flexWrap: "wrap",
+        },
+
+        // ─── Pricing ───
+        pricingGrid: {
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 24,
+          alignItems: "start",
+        },
+
+        // ─── Closer ───
+        closer: {
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 32,
+          paddingTop: 100,
+          paddingBottom: 140,
+        },
+
+        // ─── Footer ───
+        footer: {
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          padding: "64px 24px 32px",
+          maxWidth: 1100,
+          margin: "0 auto",
+        },
+        footerInner: {
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr 1fr 1.5fr",
+          gap: 32,
+          marginBottom: 48,
+        },
+        footerCol: {
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        },
+        footerBrand: {
+          fontSize: "1.2rem",
+          fontWeight: 800,
+          margin: 0,
+        },
+        footerHeading: {
+          fontSize: "0.85rem",
+          fontWeight: 700,
+          color: "#e7e7ea",
+          margin: "0 0 4px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+        },
+        footerLink: {
+          fontSize: "0.9rem",
+          color: "#8a8a96",
+          textDecoration: "none",
+          lineHeight: 1.8,
+        },
+        footerMuted: {
+          fontSize: "0.85rem",
+          color: "#5a5a66",
+          margin: 0,
+        },
+        footerBottom: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          paddingTop: 24,
+          fontSize: "0.85rem",
+          color: "#5a5a66",
+        },
+      };
+
+      // ─── Mount ───────────────────────────────────────────────────────────
+      createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
