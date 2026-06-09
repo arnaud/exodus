@@ -11,8 +11,8 @@
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh;
         style-src 'self' 'unsafe-inline' https://esm.sh;
-        connect-src 'self' http://localhost:* http://127.0.0.1:* https://127.0.0.1:* https://esm.sh https://ai-gateway.vercel.sh https://raw.githubusercontent.com https://stack.lol;
-        frame-src https://stack.lol https://*.stack.localhost;
+        connect-src 'self' http://localhost:* http://127.0.0.1:* https://127.0.0.1:* https://esm.sh https://ai-gateway.vercel.sh https://raw.githubusercontent.com https://stack.lol https://d6lzsqpg2b.execute-api.us-west-2.amazonaws.com;
+        frame-src https://stack.lol https://*.stack.localhost https://*.stack.lol;
         img-src 'self' data: blob: https://esm.sh;
       "
     />
@@ -23,7 +23,7 @@
     />
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 15 70 100'><text y='1em' font-size='100'>❖</text></svg>"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 15 70 100'><text y='1em' font-size='100'>⏏</text></svg>"
     />
 
     <!-- Tailwind CSS v4 (CDN, no build) -->
@@ -137,6 +137,9 @@
       const GITHUB_BASE =
         "https://raw.githubusercontent.com/codename-co/stack/main/hub";
 
+      const EXODUS_API =
+        "https://d6lzsqpg2b.execute-api.us-west-2.amazonaws.com";
+
       const SAAS_NAMES = {
         "1password": "1Password",
         "adobe-xd": "Adobe XD",
@@ -144,14 +147,11 @@
         amazonapigateway: "Amazon API Gateway",
         amazons3: "Amazon S3",
         auth0: "Auth0",
-        chatgpt: "ChatGPT",
         dockerhub: "Docker Hub",
         "fast.com": "Fast.com",
-        "github-copilot": "GitHub Copilot",
         google: "Google Search",
         "google-analytics": "Google Analytics",
         "google-meet": "Google Meet",
-        "google-notebook-lm": "Google NotebookLM",
         "google-photos": "Google Photos",
         "google-sheets": "Google Sheets",
         googlecloudstorage: "Google Cloud Storage",
@@ -166,6 +166,16 @@
         powerbi: "Power BI",
         youtube: "YouTube",
       };
+
+      // AI products excluded — Exodus focuses on replacing traditional SaaS, not AI tools
+      const EXCLUDED_SAAS = new Set([
+        "chatgpt",
+        "claude",
+        "github-copilot",
+        "google-notebook-lm",
+        "midjourney",
+        "perplexity",
+      ]);
 
       const AI_MODELS = [
         "anthropic/claude-sonnet-4-6",
@@ -192,6 +202,25 @@
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+      };
+
+      // ─── Cloud Deploy Helpers ────────────────────────────────────────────
+
+      const parseComposeImage = (compose) => {
+        if (!compose) return null;
+        const match = compose.match(/image:\s*['"]?([^\s'"]+)/);
+        if (!match) return null;
+        // Resolve ${VAR:-default} and ${VAR-default} to default value
+        return match[1].replace(/\$\{[^}]*:-?([^}]*)\}/g, "$1");
+      };
+
+      const parseComposePort = (compose) => {
+        if (!compose) return 80;
+        const mapping = compose.match(/['"](\d+):(\d+)/);
+        if (mapping) return parseInt(mapping[2]);
+        const standalone = compose.match(/ports:\s*\n\s*-\s*['"]?(\d+)/);
+        if (standalone) return parseInt(standalone[1]);
+        return 80;
       };
 
       // ─── Stack Desktop API ──────────────────────────────────────────────
@@ -442,6 +471,7 @@
         const [servicePopover, setServicePopover] = useState(null); // { slug, name, domain } | null
         const [runProgress, setRunProgress] = useState({}); // slug → 'pending'|'running'|'live'|'error'
         const [isRunning, setIsRunning] = useState(false);
+        const [isDeploying, setIsDeploying] = useState(false);
 
         // Refs for async flow
         const convoRef = useRef(null);
@@ -481,6 +511,7 @@
               const saasTools = [
                 ...new Set(items.flatMap((s) => s.alternativeTo ?? [])),
               ]
+                .filter((slug) => !EXCLUDED_SAAS.has(slug))
                 .map((slug) => ({ slug, name: saasDisplayName(slug) }))
                 .sort((a, b) => a.name.localeCompare(b.name));
               setCatalog(saasTools);
@@ -526,22 +557,14 @@
         // ── Watch for HITL completion → proceed to fetch ──
         useEffect(() => {
           if (phase === "hitl" && pendingHITL.length === 0) {
-            // Brief delay before proceeding
             const timer = setTimeout(() => {
-              addMsg({
-                role: "ai",
-                agent: "Exodus",
-                type: "text",
-                thinking: false,
-                text: "All selections confirmed. Let me grab the setup files for you.",
-              });
               proceedToFetch(selectionsRef.current);
             }, 600);
             return () => clearTimeout(timer);
           }
         }, [phase, pendingHITL]);
 
-        // ── Fetch compose files from GitHub ──
+        // ── Fetch compose files & build recipe ──
         const proceedToFetch = async (allSelections) => {
           setPhase("fetching");
 
@@ -549,13 +572,14 @@
             ...new Set(Object.values(allSelections).map((s) => s.slug)),
           ];
 
-          const fetchMsgId = addMsg({
+          // Create recipe immediately — shows thinking while files load
+          const recipeId = addMsg({
             role: "ai",
             agent: "Exodus",
-            type: "fetch-progress",
-            thinking: "fetching stack files from GitHub…",
-            slugs,
-            results: {},
+            type: "recipe",
+            thinking: "preparing your stack…",
+            allSelections,
+            files: {},
           });
 
           const files = {};
@@ -593,30 +617,11 @@
               }
             }
 
-            // Update progress in real time
-            updateMsg(fetchMsgId, {
-              results: { ...files },
-            });
+            updateMsg(recipeId, { files: { ...files } });
           }
 
           setFetchedFiles(files);
-
-          updateMsg(fetchMsgId, {
-            thinking: false,
-            results: files,
-          });
-
-          await delay(400);
-
-          // Add the recipe message
-          addMsg({
-            role: "ai",
-            agent: "Exodus",
-            type: "recipe",
-            allSelections,
-            files,
-          });
-
+          updateMsg(recipeId, { thinking: false, files });
           setPhase("done");
         };
 
@@ -696,6 +701,100 @@
           setIsRunning(false);
         };
 
+        // ── Cloud deploy to AWS ──
+        const handleCloudDeploy = async (allSelections, files) => {
+          setIsDeploying(true);
+          const slugs = [
+            ...new Set(Object.values(allSelections).map((s) => s.slug)),
+          ];
+
+          const stackPayload = slugs
+            .map((slug) => {
+              const compose = files[slug]?.compose || "";
+              const image = parseComposeImage(compose);
+              if (!image) return null;
+              return {
+                name: slug,
+                image,
+                port: parseComposePort(compose),
+              };
+            })
+            .filter(Boolean);
+
+          if (!stackPayload.length) {
+            addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "text",
+              thinking: false,
+              text: "Could not extract Docker images from the compose files. Deploy requires an `image:` field.",
+            });
+            setIsDeploying(false);
+            return;
+          }
+
+          const deployMsgId = addMsg({
+            role: "ai",
+            agent: "Exodus",
+            type: "cloud-deploy",
+            thinking: "deploying to AWS…",
+            deployments: [],
+            services: [],
+          });
+
+          try {
+            const resp = await fetch(`${EXODUS_API}/deploy`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ stacks: stackPayload }),
+            });
+            const data = await resp.json();
+            if (!resp.ok)
+              throw new Error(data.error || `Deploy failed (${resp.status})`);
+
+            updateMsg(deployMsgId, { deployments: data.deployments });
+
+            // Poll /status until all services are healthy
+            let attempts = 0;
+            const poll = async () => {
+              if (attempts++ > 30) {
+                updateMsg(deployMsgId, { thinking: false });
+                setIsDeploying(false);
+                return;
+              }
+              try {
+                const sr = await fetch(`${EXODUS_API}/status`);
+                const sd = await sr.json();
+                const deploySlugs = data.deployments.map((d) => d.slug);
+                const relevant = (sd.services || []).filter((s) =>
+                  deploySlugs.includes(s.slug),
+                );
+                const allHealthy =
+                  relevant.length === deploySlugs.length &&
+                  relevant.every((s) => s.healthy);
+
+                updateMsg(deployMsgId, {
+                  services: relevant,
+                  thinking: allHealthy ? false : "waiting for services…",
+                });
+
+                if (allHealthy) {
+                  setIsDeploying(false);
+                  return;
+                }
+              } catch {}
+              setTimeout(poll, 10000);
+            };
+            setTimeout(poll, 10000);
+          } catch (e) {
+            updateMsg(deployMsgId, {
+              thinking: false,
+              error: e.message,
+            });
+            setIsDeploying(false);
+          }
+        };
+
         // ── The Agent ──
         const runAgent = async (text) => {
           // Reset state
@@ -750,7 +849,10 @@
 
           updateMsg(thinkId, {
             thinking: false,
-            text: `I identified **${uniqueMatched.length}** tool${uniqueMatched.length > 1 ? "s" : ""}: ${uniqueMatched.map((t) => `**${t.name}**`).join(", ")}. Let me find the best open-source alternatives.`,
+            text:
+              uniqueMatched.length === 1
+                ? `Replacing **${uniqueMatched[0].name}**.`
+                : `Replacing ${uniqueMatched.map((t) => `**${t.name}**`).join(", ")}.`,
           });
 
           // Step 3: Recommend alternatives for each tool
@@ -810,17 +912,8 @@
 
           if (newPendingHITL.length > 0) {
             setPhase("hitl");
-            // useEffect watches for HITL completion
           } else if (Object.keys(newSelections).length > 0) {
-            // No HITL needed, proceed directly
-            await delay(600);
-            addMsg({
-              role: "ai",
-              agent: "Exodus",
-              type: "text",
-              thinking: false,
-              text: "All alternatives selected. Let me grab the setup files for you.",
-            });
+            await delay(400);
             proceedToFetch(newSelections);
           }
         };
@@ -837,7 +930,7 @@
               return (
                 <ChatBubble
                   key={msg.id}
-                  icon={msg.agent === "Exodus" ? "❖" : undefined}
+                  icon={msg.agent === "Exodus" ? "⏏" : undefined}
                   role={msg.role}
                   agent={msg.agent}
                   thinking={msg.thinking}
@@ -1014,7 +1107,8 @@
                 </ChatBubble>
               );
 
-            case "fetch-progress":
+            case "recipe": {
+              const ready = !msg.thinking;
               return (
                 <ChatBubble
                   key={msg.id}
@@ -1022,70 +1116,17 @@
                   agent="Exodus"
                   thinking={msg.thinking}
                 >
-                  {msg.slugs && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 6,
-                      }}
-                    >
-                      {msg.slugs.map((slug) => {
-                        const r = msg.results?.[slug];
-                        const hasCompose = r?.compose;
-                        const hasEnv = r?.env;
-                        const done = r && (hasCompose || hasEnv);
-                        return (
-                          <div
-                            key={slug}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              fontSize: "0.9rem",
-                            }}
-                          >
-                            <StatusDot
-                              color={done ? "#22c55e" : "#f59e0b"}
-                              static={done}
-                            />
-                            <span style={{ fontWeight: 600 }}>{slug}</span>
-                            {done && (
-                              <span
-                                style={{ color: "#8a8a96", fontSize: "0.8rem" }}
-                              >
-                                {hasCompose ? "compose.yaml ✓" : ""}{" "}
-                                {hasEnv ? ".env ✓" : ""}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                  {ready && (
+                    <p style={{ margin: "0 0 16px" }}>
+                      <GradientText>
+                        <Sparkle static solid glyph="⏏" /> Ready to deploy
+                      </GradientText>
+                    </p>
                   )}
-                </ChatBubble>
-              );
 
-            case "recipe": {
-              return (
-                <ChatBubble
-                  key={msg.id}
-                  role="ai"
-                  agent="Exodus"
-                  thinking={false}
-                >
-                  <p style={{ margin: "0 0 16px" }}>
-                    <GradientText>
-                      <Sparkle static solid glyph="❖" /> Your self-hosted stack
-                      is ready.
-                    </GradientText>
-                  </p>
-
-                  {/* Summary table with service links */}
                   <div style={styles.recipeTable}>
                     {Object.entries(msg.allSelections).map(
                       ([saasSlug, stack]) => {
-                        const domain = `${stack.slug}.stack.localhost`;
                         const status = runProgress[stack.slug];
                         const dotColor =
                           status === "live"
@@ -1111,12 +1152,12 @@
                                   setServicePopover({
                                     slug: stack.slug,
                                     name: stack.name,
-                                    domain,
+                                    domain: `${stack.slug}.stack.localhost`,
                                   })
                                 }
                                 style={styles.serviceLink}
                               >
-                                Try it out →
+                                Open →
                               </button>
                             )}
                           </div>
@@ -1125,63 +1166,52 @@
                     )}
                   </div>
 
-                  {/* Expandable file previews */}
-                  {Object.entries(msg.files).map(([slug, f]) => (
-                    <details key={slug} style={styles.fileDetails}>
-                      <summary style={styles.fileSummary}>
-                        📦 {slug}
-                        {f.compose && (
-                          <span style={styles.fileBadge}>compose.yaml</span>
-                        )}
-                        {f.env && <span style={styles.fileBadge}>.env</span>}
-                      </summary>
-                      {f.compose && (
-                        <MockIDE
-                          filename={`${slug}/compose.yaml`}
-                          tokens={[{ c: f.compose }]}
-                          charMs={[0, 0]}
-                          loop={false}
-                          thinkingLabel={false}
-                        />
-                      )}
-                      {f.env && (
-                        <MockIDE
-                          filename={`${slug}/.env`}
-                          tokens={[{ c: f.env }]}
-                          charMs={[0, 0]}
-                          loop={false}
-                          thinkingLabel={false}
-                        />
-                      )}
-                    </details>
-                  ))}
+                  {ready && (
+                    <>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "center",
+                          marginTop: 20,
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Button
+                          variant="glow"
+                          size="lg"
+                          sparkle
+                          loading={isDeploying}
+                          onClick={() =>
+                            handleCloudDeploy(msg.allSelections, msg.files)
+                          }
+                        >
+                          ☁ Deploy to cloud
+                        </Button>
+                      </div>
 
-                  {/* Action buttons */}
-                  <div style={styles.downloadRow}>
-                    <Button
-                      variant="glow"
-                      size="sm"
-                      sparkle
-                      loading={isRunning}
-                      onClick={() => handleRunAll(msg.allSelections)}
-                    >
-                      ▶ Run all stacks
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => downloadCompose(msg.files)}
-                    >
-                      Download compose
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => downloadEnv(msg.files)}
-                    >
-                      Download .env
-                    </Button>
-                  </div>
+                      <div style={styles.secondaryActions}>
+                        <button
+                          style={styles.secondaryBtn}
+                          onClick={() => handleRunAll(msg.allSelections)}
+                        >
+                          {isRunning ? "Running…" : "▶ Run locally"}
+                        </button>
+                        <span style={styles.secondaryDot}>·</span>
+                        <button
+                          style={styles.secondaryBtn}
+                          onClick={() => downloadCompose(msg.files)}
+                        >
+                          ↓ compose.yaml
+                        </button>
+                        <button
+                          style={styles.secondaryBtn}
+                          onClick={() => downloadEnv(msg.files)}
+                        >
+                          ↓ .env
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </ChatBubble>
               );
             }
@@ -1280,6 +1310,135 @@
                 </ChatBubble>
               );
 
+            case "cloud-deploy": {
+              const allHealthy =
+                msg.deployments?.length > 0 &&
+                msg.deployments.every(
+                  (d) =>
+                    (msg.services || []).find((s) => s.slug === d.slug)
+                      ?.healthy,
+                );
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  {msg.error && (
+                    <p style={{ color: "#ef4444", margin: "0 0 8px" }}>
+                      ⚠ {msg.error}
+                    </p>
+                  )}
+
+                  {allHealthy && (
+                    <p style={{ margin: "0 0 16px" }}>
+                      <GradientText>
+                        <Sparkle static solid glyph="⏏" /> Your stack is live
+                      </GradientText>
+                    </p>
+                  )}
+
+                  {msg.deployments?.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {msg.deployments.map((d) => {
+                        const svc = (msg.services || []).find(
+                          (s) => s.slug === d.slug,
+                        );
+                        const healthy = svc?.healthy;
+                        return (
+                          <div
+                            key={d.slug}
+                            style={{
+                              padding: "12px 16px",
+                              background: healthy
+                                ? "rgba(34,197,94,0.06)"
+                                : "rgba(255,255,255,0.03)",
+                              border: `1px solid ${healthy ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.08)"}`,
+                              borderRadius: 10,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                              }}
+                            >
+                              <StatusDot
+                                color={healthy ? "#22c55e" : "#f59e0b"}
+                                static={healthy}
+                              />
+                              <strong>{d.name}</strong>
+                              {!healthy && (
+                                <span
+                                  style={{
+                                    marginLeft: "auto",
+                                    color: "#8a8a96",
+                                    fontSize: "0.8rem",
+                                  }}
+                                >
+                                  deploying…
+                                </span>
+                              )}
+                            </div>
+                            {healthy && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 12,
+                                  marginTop: 10,
+                                }}
+                              >
+                                <Button
+                                  variant="glow"
+                                  size="sm"
+                                  onClick={() => {
+                                    try {
+                                      const host = new URL(d.url).hostname;
+                                      setServicePopover({
+                                        slug: d.slug,
+                                        name: d.name,
+                                        domain: host,
+                                      });
+                                    } catch {
+                                      window.open(d.url, "_blank");
+                                    }
+                                  }}
+                                >
+                                  Open {d.name} →
+                                </Button>
+                                <a
+                                  href={d.url}
+                                  target="_blank"
+                                  rel="noopener"
+                                  style={{
+                                    color: "#8a8a96",
+                                    fontSize: "0.8rem",
+                                    fontFamily:
+                                      "JetBrains Mono, ui-monospace, monospace",
+                                  }}
+                                >
+                                  {d.url.replace("https://", "")}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </ChatBubble>
+              );
+            }
+
             default:
               return null;
           }
@@ -1315,7 +1474,7 @@
                 }}
               >
                 <h1 style={styles.brand}>
-                  <Sparkle static solid glyph="❖" /> Exodus
+                  <Sparkle static solid glyph="⏏" /> Exodus
                 </h1>
               </div>
 
@@ -1342,13 +1501,15 @@
                           const saasStars = {};
                           for (const s of stacks) {
                             for (const a of s.alternativeTo ?? []) {
+                              if (EXCLUDED_SAAS.has(a)) continue;
                               saasStars[a] =
                                 (saasStars[a] ?? 0) + (s.stars ?? 0);
                             }
                           }
                           return Object.entries(saasStars)
                             .sort((a, b) => b[1] - a[1])
-                            .slice(0, 12)
+                            .slice(0, 24)
+                            .sort(() => Math.random() - 0.5)
                             .map(([slug]) => saasDisplayName(slug));
                         })().map((name) => (
                           <>
@@ -1482,6 +1643,7 @@
                   const saasStars = {};
                   for (const s of stacks) {
                     for (const a of s.alternativeTo ?? []) {
+                      if (EXCLUDED_SAAS.has(a)) continue;
                       saasStars[a] = (saasStars[a] ?? 0) + (s.stars ?? 0);
                     }
                   }
@@ -1510,6 +1672,80 @@
                     });
                 })()}
               />
+            </section>
+
+            {/* ─── Features ─── */}
+            <section style={styles.section} id="features">
+              <div style={styles.center}>
+                <EyebrowPill icon={false}>Features</EyebrowPill>
+                <h2 style={styles.h2}>
+                  Everything you need to{" "}
+                  <GradientText>break free from SaaS.</GradientText>
+                </h2>
+              </div>
+
+              <div style={styles.cardGrid}>
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>🔍</GlassCard.Icon>
+                  <GlassCard.Title>Smart alternative matching</GlassCard.Title>
+                  <GlassCard.Body>
+                    A curated catalog of {approxStackCount || "…"}+ open-source
+                    tools mapped to the SaaS products they replace — ranked by
+                    GitHub stars and community traction.
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>🤖</GlassCard.Icon>
+                  <GlassCard.Title>Human-in-the-loop agent</GlassCard.Title>
+                  <GlassCard.Body>
+                    The agent auto-selects when the winner is clear, but
+                    presents you with choices when multiple strong candidates
+                    exist. You always have the final say.
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>☁️</GlassCard.Icon>
+                  <GlassCard.Title>One-click cloud deploy</GlassCard.Title>
+                  <GlassCard.Body>
+                    Deploy your stack to AWS ECS Fargate with a single click.
+                    Each service gets its own HTTPS subdomain on{" "}
+                    <strong>stack.lol</strong> — live in under two minutes.
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>🐳</GlassCard.Icon>
+                  <GlassCard.Title>Docker Compose ready</GlassCard.Title>
+                  <GlassCard.Body>
+                    Every alternative comes with a production-grade{" "}
+                    <code>compose.yaml</code> and <code>.env</code> — download
+                    and run locally with a single <code>docker compose up</code>
+                    .
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>🔒</GlassCard.Icon>
+                  <GlassCard.Title>Your data stays yours</GlassCard.Title>
+                  <GlassCard.Body>
+                    Self-hosted means your data never leaves your
+                    infrastructure. No vendor lock-in, no surprise price hikes,
+                    no terms-of-service changes.
+                  </GlassCard.Body>
+                </GlassCard>
+
+                <GlassCard breathing glowOnHover>
+                  <GlassCard.Icon>👀</GlassCard.Icon>
+                  <GlassCard.Title>Live preview</GlassCard.Title>
+                  <GlassCard.Body>
+                    Preview your deployed services directly from the Exodus
+                    interface — no context-switching. See your stack running
+                    before you commit.
+                  </GlassCard.Body>
+                </GlassCard>
+              </div>
             </section>
 
             {/* ─── Pricing ─── */}
@@ -1580,7 +1816,19 @@
             </section>
 
             {/* ─── Closer ─── */}
-            <section style={{ ...styles.section, ...styles.closer }}>
+            <section
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                // ...styles.section,
+                ...styles.closer,
+              }}
+            >
+              <Aurora
+                blobs={[
+                  { color: "rgba(124,58,237,0.55)", x: 50, y: 90, size: 60 },
+                ]}
+              />
               <h2 style={styles.h2}>
                 Your tools. Your data.
                 <br />
@@ -1597,7 +1845,7 @@
                 {/* Brand column */}
                 <div style={styles.footerCol}>
                   <p style={styles.footerBrand}>
-                    <Sparkle static solid glyph="❖" /> Exodus
+                    <Sparkle static solid glyph="⏏" /> Exodus
                   </p>
                   <p style={styles.footerMuted}>
                     Stop paying rent on software you can own.
@@ -1612,6 +1860,9 @@
                   </a>
                   <a href="#how-it-works" style={styles.footerLink}>
                     How it works
+                  </a>
+                  <a href="#features" style={styles.footerLink}>
+                    Features
                   </a>
                   <a href="#pricing" style={styles.footerLink}>
                     Pricing
@@ -1633,7 +1884,7 @@
                     target="_blank"
                     style={styles.footerLink}
                   >
-                    stack.lol
+                    Stack
                   </a>
                 </div>
 
@@ -1953,6 +2204,28 @@
           marginTop: 16,
           flexWrap: "wrap",
         },
+        secondaryActions: {
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 6,
+          flexWrap: "wrap",
+        },
+        secondaryBtn: {
+          fontSize: "0.8rem",
+          color: "#8a8a96",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "4px 6px",
+          textDecoration: "underline",
+          textUnderlineOffset: "2px",
+          fontFamily: "inherit",
+        },
+        secondaryDot: {
+          color: "rgba(255,255,255,0.15)",
+          fontSize: "0.7rem",
+        },
 
         // ─── Pricing ───
         pricingGrid: {
@@ -1975,7 +2248,6 @@
 
         // ─── Footer ───
         footer: {
-          borderTop: "1px solid rgba(255,255,255,0.08)",
           padding: "64px 24px 32px",
           maxWidth: 1100,
           margin: "0 auto",
