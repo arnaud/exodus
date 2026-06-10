@@ -4,6 +4,7 @@
 
 [![Live](https://img.shields.io/badge/live-exodus.stack.lol-blue)](https://exodus.stack.lol)
 [![Built at](https://img.shields.io/badge/built%20at-SuperAI%20NEXT%20'26-orange)](https://superai.com)
+[![AGENTS.md](https://img.shields.io/badge/AGENTS.md-→%20agent%20docs-8A2BE2)](./AGENTS.md)
 
 ---
 

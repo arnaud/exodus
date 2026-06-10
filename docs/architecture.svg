@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif">
+  <title>Exodus system architecture</title>
+  <desc>Browser-based agentic app hosted on Vercel, using Exa for web research, Stripe for payment gating, and AWS (API Gateway, Lambda, ECS Fargate, ALB, EventBridge) for deployment, with LLM calls proxied through the Vercel AI Gateway.</desc>
+
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <radialGradient id="auroraP" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="auroraC" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b6b78"/>
+    </marker>
+    <marker id="arrCyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+    </marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#22c55e"/>
+    </marker>
+  </defs>
+
+  <!-- ── Background ── -->
+  <rect width="1600" height="900" fill="#0a0a0f"/>
+  <ellipse cx="280" cy="840" rx="560" ry="300" fill="url(#auroraP)"/>
+  <ellipse cx="1340" cy="60" rx="540" ry="280" fill="url(#auroraC)"/>
+
+  <!-- ── Title ── -->
+  <text x="60" y="76" font-size="38" font-weight="800" fill="url(#brand)">⏏ EXODUS</text>
+  <text x="296" y="76" font-size="22" font-weight="500" fill="#8a8a96">System Architecture</text>
+  <text x="60" y="106" font-size="14" fill="#8a8a96">One agentic loop from SaaS bill to sovereign stack — sponsor tech in the loop, not bolted on.</text>
+
+  <!-- ── Sponsor legend ── -->
+  <g font-size="12" font-weight="700" text-anchor="middle">
+    <rect x="1148" y="52" width="86" height="26" rx="13" fill="rgba(255,153,0,0.10)" stroke="rgba(255,153,0,0.45)"/>
+    <text x="1191" y="69" fill="#ff9900">AWS</text>
+    <rect x="1246" y="52" width="86" height="26" rx="13" fill="rgba(255,255,255,0.06)" stroke="rgba(237,237,237,0.40)"/>
+    <text x="1289" y="69" fill="#ededed">▲ Vercel</text>
+    <rect x="1344" y="52" width="86" height="26" rx="13" fill="rgba(79,108,255,0.12)" stroke="rgba(91,124,250,0.50)"/>
+    <text x="1387" y="69" fill="#7c9aff">exa</text>
+    <rect x="1442" y="52" width="86" height="26" rx="13" fill="rgba(99,91,255,0.12)" stroke="rgba(99,91,255,0.50)"/>
+    <text x="1485" y="69" fill="#b3a9ff">stripe</text>
+  </g>
+
+  <!-- ── User ── -->
+  <rect x="60" y="150" width="106" height="34" rx="17" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.14)"/>
+  <text x="113" y="172" font-size="14" fill="#e7e7ea" text-anchor="middle">👤 You</text>
+  <line x1="113" y1="184" x2="113" y2="206" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ── Browser / frontend card ── -->
+  <rect x="60" y="210" width="400" height="540" rx="20" fill="rgba(255,255,255,0.035)" stroke="rgba(255,255,255,0.12)"/>
+  <rect x="298" y="228" width="142" height="26" rx="13" fill="rgba(255,255,255,0.05)" stroke="rgba(237,237,237,0.30)"/>
+  <text x="369" y="245" font-size="11.5" font-weight="600" fill="#ededed" text-anchor="middle">▲ Vercel Hosting</text>
+  <text x="84" y="250" font-size="19" font-weight="700" fill="#e7e7ea">Browser</text>
+  <text x="84" y="274" font-size="12.5" fill="#8a8a96">Single-file React 19 app · no build · CSP-locked</text>
+
+  <text x="84" y="310" font-size="11" font-weight="700" letter-spacing="2" fill="#6b6b78">THE AGENT LOOP</text>
+
+  <!-- Scout -->
+  <rect x="84" y="324" width="352" height="96" rx="14" fill="rgba(34,211,238,0.05)" stroke="rgba(34,211,238,0.22)"/>
+  <text x="100" y="352" font-size="15" font-weight="700" fill="#e7e7ea">🔍 Scout — identify tools</text>
+  <text x="100" y="376" font-size="12" fill="#a8a8b3">whole-word match · instant · zero hallucination</text>
+  <text x="100" y="398" font-size="12" fill="#a78bfa">↳ no match? escalate to AI Gateway ✨</text>
+  <line x1="260" y1="420" x2="260" y2="446" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrCyan)"/>
+
+  <!-- Matchmaker -->
+  <rect x="84" y="450" width="352" height="96" rx="14" fill="rgba(34,211,238,0.05)" stroke="rgba(34,211,238,0.22)"/>
+  <text x="100" y="478" font-size="15" font-weight="700" fill="#e7e7ea">📚 Matchmaker — pick alternatives</text>
+  <text x="100" y="502" font-size="12" fill="#a8a8b3">auto-select clear winners · ★ star ranking</text>
+  <text x="100" y="524" font-size="12" fill="#f59e0b">↳ close call? ask the human ⏸ · Exa research 🌐</text>
+  <line x1="260" y1="546" x2="260" y2="572" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrCyan)"/>
+  <text x="274" y="564" font-size="11" fill="#8a8a96">you approve</text>
+
+  <!-- Deployer -->
+  <rect x="84" y="576" width="352" height="96" rx="14" fill="rgba(34,211,238,0.05)" stroke="rgba(34,211,238,0.22)"/>
+  <text x="100" y="604" font-size="15" font-weight="700" fill="#e7e7ea">☁️ Deployer — ship the stack</text>
+  <text x="100" y="628" font-size="12" fill="#a8a8b3">compose → images &amp; ports → Fargate</text>
+  <text x="100" y="650" font-size="12" fill="#b3a9ff">↳ $1 Stripe gate before cloud deploy 💳</text>
+
+  <text x="84" y="716" font-size="11.5" fill="#6b6b78">201 OSS stacks · 148 SaaS recognized · stacks.json</text>
+
+  <!-- ── Middle column ── -->
+  <!-- Exa -->
+  <rect x="540" y="210" width="330" height="120" rx="16" fill="rgba(79,108,255,0.06)" stroke="rgba(91,124,250,0.35)"/>
+  <rect x="564" y="230" width="62" height="28" rx="8" fill="rgba(79,108,255,0.14)" stroke="rgba(91,124,250,0.55)"/>
+  <text x="595" y="249" font-size="15" font-weight="800" fill="#7c9aff" text-anchor="middle">exa</text>
+  <text x="640" y="250" font-size="15" font-weight="700" fill="#e7e7ea">Web Search API</text>
+  <text x="564" y="288" font-size="12" fill="#a8a8b3">Live reviews, docs &amp; community signal</text>
+  <text x="564" y="308" font-size="12" fill="#8a8a96">browser-direct · agent tool 🌐 exa_search</text>
+
+  <!-- Stripe -->
+  <rect x="540" y="370" width="330" height="120" rx="16" fill="rgba(99,91,255,0.06)" stroke="rgba(99,91,255,0.35)"/>
+  <rect x="564" y="390" width="74" height="28" rx="8" fill="rgba(99,91,255,0.14)" stroke="rgba(99,91,255,0.55)"/>
+  <text x="601" y="409" font-size="15" font-weight="800" fill="#b3a9ff" text-anchor="middle">stripe</text>
+  <text x="652" y="410" font-size="15" font-weight="700" fill="#e7e7ea">Payment Link</text>
+  <text x="564" y="448" font-size="12" fill="#a8a8b3">Popup checkout · no redirect, no backend</text>
+  <text x="564" y="468" font-size="12" fill="#8a8a96">$1 per stack · gates the deploy step</text>
+
+  <!-- Catalog -->
+  <rect x="540" y="530" width="330" height="110" rx="16" fill="rgba(255,255,255,0.035)" stroke="rgba(255,255,255,0.12)"/>
+  <text x="564" y="562" font-size="15" font-weight="700" fill="#e7e7ea">📦 stack.lol catalog</text>
+  <text x="564" y="592" font-size="12" fill="#a8a8b3">compose.yaml + .env per stack</text>
+  <text x="564" y="612" font-size="12" fill="#8a8a96">fetched from GitHub raw at run time</text>
+
+  <!-- AI Gateway -->
+  <rect x="540" y="680" width="330" height="120" rx="16" fill="rgba(255,255,255,0.04)" stroke="rgba(237,237,237,0.30)"/>
+  <rect x="564" y="700" width="34" height="28" rx="8" fill="rgba(255,255,255,0.07)" stroke="rgba(237,237,237,0.40)"/>
+  <text x="581" y="719" font-size="14" fill="#ededed" text-anchor="middle">▲</text>
+  <text x="612" y="720" font-size="15" font-weight="700" fill="#e7e7ea">Vercel AI Gateway</text>
+  <text x="564" y="758" font-size="12" fill="#a8a8b3" font-family="ui-monospace, 'SF Mono', Menlo, monospace">anthropic/claude-haiku-4.5</text>
+  <text x="564" y="778" font-size="12" fill="#8a8a96">model routing · observability · budgets</text>
+
+  <!-- ── AWS zone ── -->
+  <rect x="930" y="170" width="610" height="590" rx="24" fill="rgba(255,153,0,0.035)" stroke="rgba(255,153,0,0.30)"/>
+  <rect x="954" y="192" width="64" height="28" rx="8" fill="rgba(255,153,0,0.12)" stroke="rgba(255,153,0,0.50)"/>
+  <text x="986" y="211" font-size="14" font-weight="800" fill="#ff9900" text-anchor="middle">aws</text>
+  <text x="1516" y="211" font-size="12" fill="#8a8a96" text-anchor="end">us-west-2 · disposable workshop account</text>
+
+  <!-- API Gateway -->
+  <rect x="954" y="246" width="260" height="108" rx="14" fill="rgba(255,255,255,0.04)" stroke="rgba(255,153,0,0.25)"/>
+  <text x="974" y="276" font-size="15" font-weight="700" fill="#e7e7ea">🚪 API Gateway</text>
+  <text x="974" y="298" font-size="12" fill="#a8a8b3">HTTP API · CORS for the app</text>
+  <text x="974" y="320" font-size="11.5" fill="#22d3ee" font-family="ui-monospace, 'SF Mono', Menlo, monospace">POST /deploy · GET /status</text>
+  <text x="974" y="338" font-size="11.5" fill="#22d3ee" font-family="ui-monospace, 'SF Mono', Menlo, monospace">POST /ai/chat</text>
+  <line x1="1084" y1="354" x2="1084" y2="394" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Lambda -->
+  <rect x="954" y="398" width="260" height="110" rx="14" fill="rgba(255,255,255,0.04)" stroke="rgba(255,153,0,0.25)"/>
+  <text x="974" y="428" font-size="15" font-weight="700" fill="#e7e7ea">λ exodus-deploy</text>
+  <text x="974" y="450" font-size="12" fill="#a8a8b3">Lambda control plane · Node 22</text>
+  <text x="974" y="472" font-size="12" fill="#8a8a96">provision · status · teardown · AI proxy</text>
+
+  <!-- EventBridge -->
+  <rect x="954" y="556" width="260" height="84" rx="14" fill="rgba(255,255,255,0.04)" stroke="rgba(255,153,0,0.25)"/>
+  <text x="974" y="586" font-size="15" font-weight="700" fill="#e7e7ea">⏰ EventBridge</text>
+  <text x="974" y="608" font-size="12" fill="#a8a8b3">teardown sweep · rate(15 min)</text>
+  <line x1="1084" y1="556" x2="1084" y2="512" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="1098" y="540" font-size="11" fill="#8a8a96">expire 5 h sandboxes</text>
+
+  <!-- ALB -->
+  <rect x="1258" y="246" width="254" height="108" rx="14" fill="rgba(255,255,255,0.04)" stroke="rgba(255,153,0,0.25)"/>
+  <text x="1278" y="276" font-size="15" font-weight="700" fill="#e7e7ea">⚖️ Application LB</text>
+  <text x="1278" y="298" font-size="12" fill="#a8a8b3">host-based routing</text>
+  <text x="1278" y="320" font-size="12" fill="#8a8a96">wildcard TLS · *.stack.lol</text>
+  <line x1="1385" y1="354" x2="1385" y2="394" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ECS Fargate -->
+  <rect x="1258" y="398" width="254" height="242" rx="14" fill="rgba(255,255,255,0.04)" stroke="rgba(255,153,0,0.25)"/>
+  <text x="1278" y="428" font-size="15" font-weight="700" fill="#e7e7ea">📦 ECS Fargate</text>
+  <text x="1278" y="450" font-size="12" fill="#a8a8b3">one service per stack</text>
+  <g font-size="12" font-family="ui-monospace, 'SF Mono', Menlo, monospace">
+    <rect x="1278" y="464" width="214" height="30" rx="8" fill="rgba(34,197,94,0.07)" stroke="rgba(34,197,94,0.25)"/>
+    <text x="1292" y="484" fill="#22c55e">●</text><text x="1308" y="484" fill="#c9c9d4">drawio.stack.lol</text>
+    <rect x="1278" y="502" width="214" height="30" rx="8" fill="rgba(34,197,94,0.07)" stroke="rgba(34,197,94,0.25)"/>
+    <text x="1292" y="522" fill="#22c55e">●</text><text x="1308" y="522" fill="#c9c9d4">nocodb.stack.lol</text>
+    <rect x="1278" y="540" width="214" height="30" rx="8" fill="rgba(34,197,94,0.07)" stroke="rgba(34,197,94,0.25)"/>
+    <text x="1292" y="560" fill="#22c55e">●</text><text x="1308" y="560" fill="#c9c9d4">gatus.stack.lol</text>
+  </g>
+  <text x="1278" y="612" font-size="11.5" fill="#8a8a96">5-hour TTL · self-destructing sandbox</text>
+
+  <!-- Lambda → ALB / ECS provisioning arrows -->
+  <path d="M1214,420 H1236 V310 H1254" fill="none" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="1214" y1="470" x2="1254" y2="470" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="1234" y="380" font-size="11" fill="#8a8a96" text-anchor="middle" transform="rotate(-90,1234,380)">provisions</text>
+
+  <!-- Live URL pill -->
+  <rect x="1258" y="120" width="254" height="34" rx="17" fill="rgba(34,197,94,0.08)" stroke="rgba(34,197,94,0.30)"/>
+  <text x="1385" y="142" font-size="12.5" fill="#4ade80" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace">🌍 https://{stack}.stack.lol</text>
+  <line x1="1385" y1="246" x2="1385" y2="158" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arrGreen)"/>
+
+  <!-- ── Cross-zone arrows ── -->
+  <!-- Browser → Exa -->
+  <line x1="460" y1="270" x2="536" y2="270" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="498" y="260" font-size="11" fill="#8a8a96" text-anchor="middle">research</text>
+  <!-- Browser → Stripe -->
+  <line x1="460" y1="430" x2="536" y2="430" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="498" y="420" font-size="11" fill="#8a8a96" text-anchor="middle">checkout</text>
+  <!-- Browser → Catalog -->
+  <line x1="460" y1="585" x2="536" y2="585" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="498" y="575" font-size="11" fill="#8a8a96" text-anchor="middle">compose</text>
+  <!-- Browser → API Gateway corridor -->
+  <path d="M340,210 V150 H1084 V242" fill="none" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="700" y="142" font-size="11.5" fill="#8a8a96" font-family="ui-monospace, 'SF Mono', Menlo, monospace">fetch → /deploy · /status · /ai/chat</text>
+  <!-- Lambda → AI Gateway -->
+  <path d="M954,480 H906 V740 H874" fill="none" stroke="#6b6b78" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="894" y="614" font-size="11" fill="#8a8a96" text-anchor="middle" transform="rotate(-90,894,614)">LLM escalation · key server-side</text>
+
+  <!-- ── Footer ── -->
+  <text x="60" y="836" font-size="12.5" fill="#6b6b78">Zero dedicated backend — one Lambda is both control plane and AI proxy · LLM tokens spent only on escalation · every sandbox self-destructs in 5 h</text>
+  <text x="1540" y="868" font-size="12" fill="#5a5a66" text-anchor="end">Built solo at SuperAI NEXT Hackathon '26 · exodus.host</text>
+</svg>
