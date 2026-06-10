@@ -22,6 +22,30 @@
       content="Pick the SaaS tools you pay for. An AI agent finds free, open-source alternatives — fetches the Docker Compose files — and hands you a ready-to-run stack. You approve every choice."
     />
     <link rel="canonical" href="https://exodus.stack.lol" />
+
+    <!-- hreflang alternates: one URL per language for crawlers -->
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://exodus.stack.lol/"
+    />
+    <link rel="alternate" hreflang="en" href="https://exodus.stack.lol/" />
+    <link
+      rel="alternate"
+      hreflang="zh"
+      href="https://exodus.stack.lol/?lang=zh"
+    />
+    <link
+      rel="alternate"
+      hreflang="ko"
+      href="https://exodus.stack.lol/?lang=ko"
+    />
+    <link
+      rel="alternate"
+      hreflang="fr"
+      href="https://exodus.stack.lol/?lang=fr"
+    />
+
     <meta name="robots" content="index, follow" />
     <meta name="author" content="stack.lol" />
     <meta name="theme-color" content="#0a0a0a" />
@@ -36,6 +60,9 @@
     />
     <meta property="og:site_name" content="Exodus" />
     <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="zh_CN" />
+    <meta property="og:locale:alternate" content="ko_KR" />
+    <meta property="og:locale:alternate" content="fr_FR" />
 
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary" />
@@ -193,6 +220,899 @@
 
       const SANDBOX_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours in ms
 
+      // ─── i18n ────────────────────────────────────────────────────────────
+
+      const LANGS = { en: "English", zh: "中文", ko: "한국어", fr: "Français" };
+      const HTML_LANGS = { en: "en", zh: "zh-CN", ko: "ko", fr: "fr" };
+      const OG_LOCALES = {
+        en: "en_US",
+        zh: "zh_CN",
+        ko: "ko_KR",
+        fr: "fr_FR",
+      };
+      const SITE_URL = "https://exodus.stack.lol";
+      const LANG_KEY = "exodus_lang";
+
+      const I18N = {
+        en: {
+          meta_title: "Exodus — Eject from SaaS. Self-host in 2 minutes.",
+          meta_description:
+            "Pick the SaaS tools you pay for. An AI agent finds free, open-source alternatives — fetches the Docker Compose files — and hands you a ready-to-run stack. You approve every choice.",
+          og_title: "Exodus — Eject from SaaS",
+          og_description:
+            "Type the SaaS tools you pay for. A deterministic agent finds open-source alternatives, you approve every choice, and one click deploys them — self-hosted in under 2 minutes.",
+          banner_text:
+            "🏆 Built {solo} at SuperAI NEXT Hackathon '26, Singapore",
+          banner_solo: "solo",
+          banner_cta: "View contest →",
+          hero_title: "Eject from {tool}",
+          hero_sub:
+            "Tell me which SaaS you pay for. I'll find the best {oss}, and deploy them to {cloud}. All in under two minutes.",
+          hero_sub_oss: "open-source alternatives",
+          hero_sub_cloud: "your own cloud",
+          prompt_placeholder:
+            "Which tools do you use? (e.g. Notion, Slack, GitLab, Grafana…)",
+          prompt_cta: "Build my stack",
+          tool_identify_tools: "Identify tools",
+          tool_ai_match: "Ask AI",
+          tool_match_alternative: "Look for alternatives",
+          tool_exa_search: "Search the web",
+          tool_fetch_compose: "Fetch the compose file",
+          tool_parse_image: "Parse image",
+          tool_deploy_ecs: "Deploy to AWS ECS",
+          tool_check_health: "Healthcheck",
+          res_no_exact_match: "no exact match — asking AI",
+          res_no_tools: "no tools identified",
+          res_saas_count: "{n} SaaS",
+          res_oss_count: "{n} open-source",
+          res_no_match_catalog: "no match in catalog",
+          res_already_recommended: "{name} — already recommended",
+          res_user_decides: "{n} candidates — user decides",
+          res_not_found: "not found",
+          res_provisioned: "provisioned",
+          res_all_healthy: "all healthy ✓",
+          res_timeout: "timeout",
+          res_error: "error: {msg}",
+          res_results: "{n} result(s)",
+          svc_count: "{n} service(s)",
+          thk_checking: "checking…",
+          thk_selecting: "selecting…",
+          thk_waiting_choice: "waiting for your choice…",
+          thk_starting_stacks: "starting your stacks…",
+          thk_waiting_payment: "waiting for payment…",
+          thk_deploying_aws: "deploying to AWS…",
+          thk_waiting_services: "waiting for services…",
+          msg_no_tools_found:
+            'I couldn\'t identify any tools in your message — even with AI assistance. Try mentioning specific tools — for example: "We use Notion, Slack, and Grafana" or "Datadog, GitHub, GitLab".',
+          msg_all_oss:
+            "All the tools I found are **already open-source** — you're in great shape! No SaaS to replace. 🎉",
+          msg_desktop_not_running:
+            "The **Stack Desktop app** isn't running. Open it first, then try again. [Get it here](https://stack.lol/download).",
+          msg_payment_wait:
+            "Complete your payment in the Stripe window. This will continue automatically.",
+          msg_payment_received: "✔ **Payment received**",
+          msg_no_images:
+            "Could not extract Docker images from the compose files. Deploy requires an `image:` field.",
+          oss_already: "{name} is {green} — no replacement needed.",
+          oss_already_green: "already open-source",
+          stars_license: "★ {stars} stars · {license}",
+          replaces_suffix: " · replaces {names}",
+          web_results_intro: "Here's what the web says about {name}:",
+          web_no_results: "No relevant results found.",
+          web_powered: "Powered by Exa",
+          autosel_for: "For replacing {saas}, I recommend:",
+          autosel_plain: "I recommend:",
+          view_on_stacklol: "View on stack.lol →",
+          search_web_btn: "🌐 Search the web",
+          searching_btn: "🌐 searching…",
+          search_web_title: "Search the web for more info",
+          autosel_ready: "✓ Open-source and ready to deploy",
+          autosel_selected_strong: "✓ Auto-selected (top-rated)",
+          autosel_selected_best: "✓ Auto-selected (best available)",
+          hitl_msg: "I found {alts} to {saas}. Which one fits your team best?",
+          hitl_alts: "{n} strong alternatives",
+          hitlrec_msg:
+            "I found {tools} that match your needs. Pick the ones you'd like to deploy:",
+          hitlrec_tools: "{n} open-source tools",
+          selected_btn: "✓ Selected",
+          select_btn: "Select",
+          details_btn: "details ↗",
+          more_btn: "more",
+          more_btn_loading: "more…",
+          confirm_selection: "Confirm selection",
+          recipe_ready: "Ready to deploy",
+          recipe_replaces: "replaces {name}",
+          open_btn: "Open ↗",
+          run_locally: "▶ Run locally",
+          deploy_cloud: "Deploy to cloud • $1",
+          status_live: "live",
+          status_error: "error",
+          status_starting: "starting…",
+          status_pending: "pending",
+          status_deploying: "deploying…",
+          cloud_live: "Your stack is live",
+          preview_btn: "Preview {name} ↗",
+          open_name_btn: "Open {name} →",
+          countdown_expired: "Expired",
+          countdown_hm: "{h}h {m}m remaining",
+          countdown_ms: "{m}m {s}s remaining",
+          hitl_waiting_bar: "Waiting for your selection on {names}",
+          social_proof: "Replacements for all of these — ready to deploy:",
+          why_eyebrow: "Why self-host",
+          why_title: "Three reasons teams {grad}",
+          why_title_grad: "eject from SaaS.",
+          why1_title: "Data sovereignty",
+          why1_body:
+            "Your data lives on your infrastructure, in your region, under your jurisdiction. No third-party access, no cross-border transfers, no surprise policy changes.",
+          why2_title: "Vendor independence",
+          why2_body:
+            'No lock-in. No forced migrations when a vendor pivots. No "we\'re sunsetting this feature" emails. You own the software — it runs on your terms, forever.',
+          why3_title: "Predictable costs",
+          why3_body:
+            "SaaS bills scale with seats. Self-hosted costs scale with usage. A 20-person team can replace $2,000–5,000/mo in subscriptions with ~$50/mo of compute.",
+          ba_before_label: "With SaaS",
+          ba_after_label: "With Exodus",
+          ba_before_1: "Data on someone else's servers",
+          ba_before_2: "Per-seat pricing that grows with your team",
+          ba_before_3: "Vendor decides when features change",
+          ba_before_4: "Locked in — migration is painful",
+          ba_after_1: "Data on your own infrastructure",
+          ba_after_2: "Fixed compute cost, unlimited seats",
+          ba_after_3: "You control every update",
+          ba_after_4: "Open source — switch anytime",
+          how_eyebrow: "How it works",
+          how_title: "Three steps. {grad}",
+          how_title_grad: "You stay in control.",
+          how1_title: "Name your tools",
+          how1_body:
+            "Type the SaaS your team uses — Notion, Slack, Jira, Datadog, whatever. Exodus recognizes {count}+ products instantly.",
+          how1_link: "Try it now",
+          how2_title: "Pick your replacements",
+          how2_body:
+            "The agent matches each tool to the top-rated open-source alternative. Clear winner? Auto-selected. Close call? {you}",
+          how2_you: "You decide.",
+          how3_title: "Deploy in one click",
+          how3_body:
+            "Your entire stack goes live on AWS with its own HTTPS subdomain — or download the Docker Compose and run it yourself.",
+          feat_eyebrow: "Features",
+          feat_title: "Everything you need to {grad}",
+          feat_title_grad: "break free from SaaS.",
+          feat1_title: "{count}+ alternatives",
+          feat1_body:
+            "A curated catalog of open-source tools mapped to the SaaS they replace — ranked by GitHub stars and battle-tested by the community.",
+          feat2_title: "You approve every choice",
+          feat2_body:
+            "The agent auto-selects clear winners and asks you on close calls. No black-box decisions — you see every option and make the final call.",
+          feat3_title: "Live in two minutes",
+          feat3_body:
+            "One click deploys to AWS ECS Fargate. Each service gets its own HTTPS subdomain — preview it right from this page.",
+          feat4_title: "Works offline too",
+          feat4_body:
+            "Every stack comes with a production-grade {compose} and {env}. Download, {cmd}, done.",
+          feat5_title: "Your data, your rules",
+          feat5_body:
+            "Self-hosted means no vendor lock-in, no surprise price hikes, no terms-of-service changes. Your infrastructure, your terms.",
+          feat6_title: "Preview before you commit",
+          feat6_body:
+            "Open your deployed services directly inside Exodus. See them running live before you make the switch.",
+          pricing_eyebrow: "Pricing",
+          pricing_title: "The software is free. {grad}",
+          pricing_title_grad: "We handle the rest.",
+          price1_tier: "DIY",
+          price1_amount: "Free",
+          price1_blurb:
+            "Compose & run your stack on your own machine, for free.",
+          price1_f1: "Agentic stack composer",
+          price1_f2: "Download Docker Compose + .env",
+          price1_f3: "Run on your own machine",
+          get_started: "Get started",
+          price2_flag: "Try it live",
+          price2_tier: "Hosted Cloud",
+          price2_unit: "per stack, 5h sandbox",
+          price2_blurb:
+            "See your stack running live for 5 hours. Evaluate it, then self-host or upgrade.",
+          price2_f1: "One-click deploy to AWS",
+          price2_f2: "HTTPS subdomain for 5 hours",
+          price2_f3: "Export config before expiry",
+          price3_flag: "Lazy cost-cutting",
+          price3_tier: "Fully Managed",
+          price3_unit: "per month, per server",
+          price3_blurb:
+            "We host and maintain your stack for you. Focus on your work, not server upkeep.",
+          price3_f1: "Everything in Hosted Cloud",
+          price3_f2: "Managed updates, security & uptime",
+          price3_f3: "24/7 monitoring and support",
+          contact_us: "Contact Us",
+          closer_1: "Own your tools.",
+          closer_2: "Stop renting software.",
+          closer_cta: "Build my stack — free",
+          footer_tagline: "Eject from SaaS. Own your stack.",
+          footer_product: "Product",
+          footer_community: "Community",
+          badge_star: "Star us on GitHub",
+          badge_tested: "Tested & ready to run",
+          footer_built: "Built at SuperAI NEXT Hackathon",
+          close_label: "Close",
+          exa_prompt:
+            "Enter your Exa API key to enable web search (get one at https://dashboard.exa.ai):",
+        },
+        zh: {
+          meta_title: "Exodus — 告别 SaaS,2 分钟实现自托管。",
+          meta_description:
+            "选择您付费使用的 SaaS 工具。AI 代理会找到免费的开源替代品——获取 Docker Compose 文件——并为您准备好即开即用的软件栈。每个选择都由您批准。",
+          og_title: "Exodus — 告别 SaaS",
+          og_description:
+            "输入您付费使用的 SaaS 工具。确定性代理会找到开源替代品,每个选择都由您批准,一键部署——不到 2 分钟即可完成自托管。",
+          banner_text:
+            "🏆 {solo}打造于 SuperAI NEXT Hackathon '26(新加坡)",
+          banner_solo: "独立",
+          banner_cta: "查看比赛 →",
+          hero_title: "告别 {tool}",
+          hero_sub:
+            "告诉我您为哪些 SaaS 付费。我会找到最好的{oss},并将它们部署到{cloud}。全程不到两分钟。",
+          hero_sub_oss: "开源替代品",
+          hero_sub_cloud: "您自己的云",
+          prompt_placeholder:
+            "您在使用哪些工具?(例如 Notion、Slack、GitLab、Grafana……)",
+          prompt_cta: "构建我的软件栈",
+          tool_identify_tools: "识别工具",
+          tool_ai_match: "询问 AI",
+          tool_match_alternative: "寻找替代品",
+          tool_exa_search: "搜索网络",
+          tool_fetch_compose: "获取 compose 文件",
+          tool_parse_image: "解析镜像",
+          tool_deploy_ecs: "部署到 AWS ECS",
+          tool_check_health: "健康检查",
+          res_no_exact_match: "无精确匹配——询问 AI",
+          res_no_tools: "未识别出工具",
+          res_saas_count: "{n} 个 SaaS",
+          res_oss_count: "{n} 个开源工具",
+          res_no_match_catalog: "目录中无匹配项",
+          res_already_recommended: "{name}——已推荐",
+          res_user_decides: "{n} 个候选——由用户决定",
+          res_not_found: "未找到",
+          res_provisioned: "已配置",
+          res_all_healthy: "全部健康 ✓",
+          res_timeout: "超时",
+          res_error: "错误:{msg}",
+          res_results: "{n} 条结果",
+          svc_count: "{n} 个服务",
+          thk_checking: "检查中……",
+          thk_selecting: "选择中……",
+          thk_waiting_choice: "等待您的选择……",
+          thk_starting_stacks: "正在启动您的软件栈……",
+          thk_waiting_payment: "等待付款……",
+          thk_deploying_aws: "正在部署到 AWS……",
+          thk_waiting_services: "等待服务就绪……",
+          msg_no_tools_found:
+            "即使借助 AI,我也无法从您的消息中识别出任何工具。请尝试提及具体的工具,例如:「我们使用 Notion、Slack 和 Grafana」或「Datadog、GitHub、GitLab」。",
+          msg_all_oss:
+            "我找到的所有工具都**已经是开源的**——您的状态非常好!没有需要替换的 SaaS。🎉",
+          msg_desktop_not_running:
+            "**Stack 桌面应用**未在运行。请先打开它,然后重试。[点此获取](https://stack.lol/download)。",
+          msg_payment_wait: "请在 Stripe 窗口中完成付款。之后将自动继续。",
+          msg_payment_received: "✔ **已收到付款**",
+          msg_no_images:
+            "无法从 compose 文件中提取 Docker 镜像。部署需要 `image:` 字段。",
+          oss_already: "{name} {green}——无需替换。",
+          oss_already_green: "已经是开源的",
+          stars_license: "★ {stars} 星 · {license}",
+          replaces_suffix: " · 可替代 {names}",
+          web_results_intro: "以下是网上关于 {name} 的评价:",
+          web_no_results: "未找到相关结果。",
+          web_powered: "由 Exa 提供支持",
+          autosel_for: "要替换 {saas},我推荐:",
+          autosel_plain: "我推荐:",
+          view_on_stacklol: "在 stack.lol 上查看 →",
+          search_web_btn: "🌐 搜索网络",
+          searching_btn: "🌐 搜索中……",
+          search_web_title: "在网上搜索更多信息",
+          autosel_ready: "✓ 开源且可立即部署",
+          autosel_selected_strong: "✓ 已自动选择(评分最高)",
+          autosel_selected_best: "✓ 已自动选择(现有最佳)",
+          hitl_msg: "我为 {saas} 找到了 {alts}。哪一个最适合您的团队?",
+          hitl_alts: "{n} 个优秀替代品",
+          hitlrec_msg: "我找到了符合您需求的 {tools}。请选择您想部署的:",
+          hitlrec_tools: "{n} 个开源工具",
+          selected_btn: "✓ 已选择",
+          select_btn: "选择",
+          details_btn: "详情 ↗",
+          more_btn: "更多",
+          more_btn_loading: "更多……",
+          confirm_selection: "确认选择",
+          recipe_ready: "准备就绪,可以部署",
+          recipe_replaces: "替代 {name}",
+          open_btn: "打开 ↗",
+          run_locally: "▶ 本地运行",
+          deploy_cloud: "部署到云端 • $1",
+          status_live: "运行中",
+          status_error: "错误",
+          status_starting: "启动中……",
+          status_pending: "等待中",
+          status_deploying: "部署中……",
+          cloud_live: "您的软件栈已上线",
+          preview_btn: "预览 {name} ↗",
+          open_name_btn: "打开 {name} →",
+          countdown_expired: "已过期",
+          countdown_hm: "剩余 {h} 小时 {m} 分钟",
+          countdown_ms: "剩余 {m} 分钟 {s} 秒",
+          hitl_waiting_bar: "正在等待您对 {names} 的选择",
+          social_proof: "以下所有工具的替代品——随时可部署:",
+          why_eyebrow: "为什么自托管",
+          why_title: "团队{grad}的三个理由",
+          why_title_grad: "告别 SaaS",
+          why1_title: "数据主权",
+          why1_body:
+            "您的数据存放在您自己的基础设施上,位于您所在的地区,受您的司法管辖。没有第三方访问,没有跨境传输,没有突如其来的政策变更。",
+          why2_title: "不受供应商制约",
+          why2_body:
+            "没有锁定。供应商转型时无需被迫迁移。再也收不到「该功能即将下线」的邮件。软件归您所有——永远按您的条件运行。",
+          why3_title: "成本可预测",
+          why3_body:
+            "SaaS 账单随席位数增长,自托管成本随用量增长。一个 20 人的团队可以用每月约 50 美元的计算资源,替代每月 2,000–5,000 美元的订阅费用。",
+          ba_before_label: "使用 SaaS",
+          ba_after_label: "使用 Exodus",
+          ba_before_1: "数据在别人的服务器上",
+          ba_before_2: "按席位计价,随团队增长",
+          ba_before_3: "功能变更由供应商决定",
+          ba_before_4: "被锁定——迁移很痛苦",
+          ba_after_1: "数据在您自己的基础设施上",
+          ba_after_2: "计算成本固定,席位不限",
+          ba_after_3: "每次更新由您掌控",
+          ba_after_4: "开源——随时切换",
+          how_eyebrow: "工作原理",
+          how_title: "三个步骤。{grad}",
+          how_title_grad: "一切由您掌控。",
+          how1_title: "说出您的工具",
+          how1_body:
+            "输入您团队使用的 SaaS——Notion、Slack、Jira、Datadog,任何工具。Exodus 可即时识别 {count}+ 款产品。",
+          how1_link: "立即试用",
+          how2_title: "挑选替代品",
+          how2_body:
+            "代理会为每个工具匹配评分最高的开源替代品。优势明显?自动选择。难分高下?{you}",
+          how2_you: "由您决定。",
+          how3_title: "一键部署",
+          how3_body:
+            "您的整个软件栈在 AWS 上线,并拥有自己的 HTTPS 子域名——或者下载 Docker Compose 自行运行。",
+          feat_eyebrow: "功能",
+          feat_title: "{grad}所需的一切",
+          feat_title_grad: "摆脱 SaaS",
+          feat1_title: "{count}+ 个替代品",
+          feat1_body:
+            "精心整理的开源工具目录,与其替代的 SaaS 一一对应——按 GitHub 星数排名,经社区实战检验。",
+          feat2_title: "每个选择都由您批准",
+          feat2_body:
+            "代理自动选择明显的优胜者,难以取舍时会询问您。没有黑箱决策——您看到所有选项并做最终决定。",
+          feat3_title: "两分钟上线",
+          feat3_body:
+            "一键部署到 AWS ECS Fargate。每个服务都有自己的 HTTPS 子域名——可直接在本页预览。",
+          feat4_title: "也支持离线使用",
+          feat4_body:
+            "每个软件栈都附带生产级的 {compose} 和 {env}。下载,{cmd},完成。",
+          feat5_title: "您的数据,您做主",
+          feat5_body:
+            "自托管意味着没有供应商锁定、没有突然涨价、没有服务条款变更。您的基础设施,您说了算。",
+          feat6_title: "决定前先预览",
+          feat6_body:
+            "直接在 Exodus 中打开已部署的服务。在做出切换之前,先看它们实际运行。",
+          pricing_eyebrow: "定价",
+          pricing_title: "软件是免费的。{grad}",
+          pricing_title_grad: "其余交给我们。",
+          price1_tier: "自助",
+          price1_amount: "免费",
+          price1_blurb: "在自己的机器上免费组建并运行您的软件栈。",
+          price1_f1: "代理式软件栈组建器",
+          price1_f2: "下载 Docker Compose + .env",
+          price1_f3: "在自己的机器上运行",
+          get_started: "开始使用",
+          price2_flag: "在线试用",
+          price2_tier: "托管云",
+          price2_unit: "每个软件栈,5 小时沙箱",
+          price2_blurb: "观看您的软件栈在线运行 5 小时。先评估,再自托管或升级。",
+          price2_f1: "一键部署到 AWS",
+          price2_f2: "5 小时 HTTPS 子域名",
+          price2_f3: "到期前导出配置",
+          price3_flag: "省心降本",
+          price3_tier: "全托管",
+          price3_unit: "每月,每台服务器",
+          price3_blurb:
+            "我们为您托管和维护软件栈。专注于您的工作,而不是服务器维护。",
+          price3_f1: "包含托管云的所有功能",
+          price3_f2: "托管更新、安全与可用性",
+          price3_f3: "全天候监控与支持",
+          contact_us: "联系我们",
+          closer_1: "拥有您的工具。",
+          closer_2: "别再租用软件。",
+          closer_cta: "构建我的软件栈——免费",
+          footer_tagline: "告别 SaaS,拥有自己的软件栈。",
+          footer_product: "产品",
+          footer_community: "社区",
+          badge_star: "在 GitHub 上给我们加星",
+          badge_tested: "经测试,随时可运行",
+          footer_built: "打造于 SuperAI NEXT Hackathon",
+          close_label: "关闭",
+          exa_prompt:
+            "请输入您的 Exa API 密钥以启用网络搜索(可在 https://dashboard.exa.ai 获取):",
+        },
+        ko: {
+          meta_title: "Exodus — SaaS에서 탈출하세요. 2분 만에 셀프 호스팅.",
+          meta_description:
+            "비용을 지불 중인 SaaS 도구를 선택하세요. AI 에이전트가 무료 오픈소스 대안을 찾아 Docker Compose 파일을 가져오고, 바로 실행 가능한 스택을 제공합니다. 모든 선택은 직접 승인합니다.",
+          og_title: "Exodus — SaaS 탈출",
+          og_description:
+            "비용을 지불 중인 SaaS 도구를 입력하세요. 결정론적 에이전트가 오픈소스 대안을 찾고, 모든 선택을 직접 승인하면, 클릭 한 번으로 배포됩니다 — 2분 안에 셀프 호스팅 완료.",
+          banner_text:
+            "🏆 싱가포르 SuperAI NEXT Hackathon '26에서 {solo} 제작",
+          banner_solo: "혼자서",
+          banner_cta: "대회 보기 →",
+          hero_title: "{tool}에서 탈출",
+          hero_sub:
+            "어떤 SaaS에 비용을 지불하고 있는지 알려주세요. 최고의 {oss}을 찾아 {cloud}에 배포해 드립니다. 단 2분이면 충분합니다.",
+          hero_sub_oss: "오픈소스 대안",
+          hero_sub_cloud: "내 클라우드",
+          prompt_placeholder:
+            "어떤 도구를 사용하시나요? (예: Notion, Slack, GitLab, Grafana…)",
+          prompt_cta: "스택 만들기",
+          tool_identify_tools: "도구 식별",
+          tool_ai_match: "AI에게 묻기",
+          tool_match_alternative: "대안 찾기",
+          tool_exa_search: "웹 검색",
+          tool_fetch_compose: "Compose 파일 가져오기",
+          tool_parse_image: "이미지 파싱",
+          tool_deploy_ecs: "AWS ECS에 배포",
+          tool_check_health: "상태 확인",
+          res_no_exact_match: "정확히 일치하는 항목 없음 — AI에게 문의",
+          res_no_tools: "식별된 도구 없음",
+          res_saas_count: "SaaS {n}개",
+          res_oss_count: "오픈소스 {n}개",
+          res_no_match_catalog: "카탈로그에 일치 항목 없음",
+          res_already_recommended: "{name} — 이미 추천됨",
+          res_user_decides: "후보 {n}개 — 사용자가 결정",
+          res_not_found: "찾을 수 없음",
+          res_provisioned: "프로비저닝 완료",
+          res_all_healthy: "모두 정상 ✓",
+          res_timeout: "시간 초과",
+          res_error: "오류: {msg}",
+          res_results: "결과 {n}개",
+          svc_count: "서비스 {n}개",
+          thk_checking: "확인 중…",
+          thk_selecting: "선택 중…",
+          thk_waiting_choice: "선택을 기다리는 중…",
+          thk_starting_stacks: "스택을 시작하는 중…",
+          thk_waiting_payment: "결제를 기다리는 중…",
+          thk_deploying_aws: "AWS에 배포 중…",
+          thk_waiting_services: "서비스를 기다리는 중…",
+          msg_no_tools_found:
+            "AI의 도움을 받아도 메시지에서 도구를 식별하지 못했습니다. 구체적인 도구 이름을 언급해 보세요 — 예: 'Notion, Slack, Grafana를 사용해요' 또는 'Datadog, GitHub, GitLab'.",
+          msg_all_oss:
+            "찾은 모든 도구가 **이미 오픈소스**입니다 — 훌륭해요! 교체할 SaaS가 없습니다. 🎉",
+          msg_desktop_not_running:
+            "**Stack 데스크톱 앱**이 실행 중이 아닙니다. 먼저 실행한 후 다시 시도하세요. [여기서 받기](https://stack.lol/download).",
+          msg_payment_wait:
+            "Stripe 창에서 결제를 완료하세요. 완료 후 자동으로 계속됩니다.",
+          msg_payment_received: "✔ **결제 완료**",
+          msg_no_images:
+            "Compose 파일에서 Docker 이미지를 추출하지 못했습니다. 배포에는 `image:` 필드가 필요합니다.",
+          oss_already: "{name}은(는) {green}입니다 — 교체할 필요가 없습니다.",
+          oss_already_green: "이미 오픈소스",
+          stars_license: "★ {stars} 스타 · {license}",
+          replaces_suffix: " · {names} 대체",
+          web_results_intro: "{name}에 대한 웹의 평가입니다:",
+          web_no_results: "관련 결과가 없습니다.",
+          web_powered: "Exa 제공",
+          autosel_for: "{saas}를 대체할 도구로 추천합니다:",
+          autosel_plain: "추천합니다:",
+          view_on_stacklol: "stack.lol에서 보기 →",
+          search_web_btn: "🌐 웹 검색",
+          searching_btn: "🌐 검색 중…",
+          search_web_title: "웹에서 추가 정보 검색",
+          autosel_ready: "✓ 오픈소스, 배포 준비 완료",
+          autosel_selected_strong: "✓ 자동 선택됨 (최고 평점)",
+          autosel_selected_best: "✓ 자동 선택됨 (최선의 선택)",
+          hitl_msg:
+            "{saas}의 {alts}을 찾았습니다. 어떤 것이 팀에 가장 잘 맞나요?",
+          hitl_alts: "강력한 대안 {n}개",
+          hitlrec_msg:
+            "필요에 맞는 {tools}을 찾았습니다. 배포할 항목을 선택하세요:",
+          hitlrec_tools: "오픈소스 도구 {n}개",
+          selected_btn: "✓ 선택됨",
+          select_btn: "선택",
+          details_btn: "상세 ↗",
+          more_btn: "더 보기",
+          more_btn_loading: "더 보기…",
+          confirm_selection: "선택 확인",
+          recipe_ready: "배포 준비 완료",
+          recipe_replaces: "{name} 대체",
+          open_btn: "열기 ↗",
+          run_locally: "▶ 로컬 실행",
+          deploy_cloud: "클라우드에 배포 • $1",
+          status_live: "라이브",
+          status_error: "오류",
+          status_starting: "시작 중…",
+          status_pending: "대기 중",
+          status_deploying: "배포 중…",
+          cloud_live: "스택이 라이브 상태입니다",
+          preview_btn: "{name} 미리보기 ↗",
+          open_name_btn: "{name} 열기 →",
+          countdown_expired: "만료됨",
+          countdown_hm: "{h}시간 {m}분 남음",
+          countdown_ms: "{m}분 {s}초 남음",
+          hitl_waiting_bar: "{names}에 대한 선택을 기다리는 중",
+          social_proof: "이 모든 도구의 대체재 — 배포 준비 완료:",
+          why_eyebrow: "셀프 호스팅의 이유",
+          why_title: "팀이 {grad} 세 가지 이유",
+          why_title_grad: "SaaS에서 탈출하는",
+          why1_title: "데이터 주권",
+          why1_body:
+            "데이터가 내 인프라, 내 지역, 내 관할권 안에 있습니다. 제3자 접근도, 국경 간 전송도, 갑작스러운 정책 변경도 없습니다.",
+          why2_title: "벤더 독립성",
+          why2_body:
+            "락인이 없습니다. 벤더가 방향을 바꿔도 강제 마이그레이션이 없습니다. '이 기능은 종료됩니다' 같은 이메일도 없습니다. 소프트웨어를 소유하고, 영원히 내 방식대로 운영합니다.",
+          why3_title: "예측 가능한 비용",
+          why3_body:
+            "SaaS 요금은 좌석 수에 따라 늘어나지만, 셀프 호스팅 비용은 사용량에 따라 늘어납니다. 20명 규모 팀이라면 월 $2,000–5,000의 구독료를 월 약 $50의 컴퓨팅 비용으로 대체할 수 있습니다.",
+          ba_before_label: "SaaS 사용 시",
+          ba_after_label: "Exodus 사용 시",
+          ba_before_1: "데이터가 남의 서버에",
+          ba_before_2: "팀이 커질수록 늘어나는 좌석당 요금",
+          ba_before_3: "기능 변경은 벤더 마음대로",
+          ba_before_4: "락인 — 마이그레이션은 고통",
+          ba_after_1: "데이터가 내 인프라에",
+          ba_after_2: "고정된 컴퓨팅 비용, 무제한 좌석",
+          ba_after_3: "모든 업데이트를 직접 제어",
+          ba_after_4: "오픈소스 — 언제든 전환 가능",
+          how_eyebrow: "작동 방식",
+          how_title: "세 단계. {grad}",
+          how_title_grad: "통제권은 항상 당신에게.",
+          how1_title: "도구 말하기",
+          how1_body:
+            "팀에서 사용하는 SaaS를 입력하세요 — Notion, Slack, Jira, Datadog 등 무엇이든. Exodus는 {count}개 이상의 제품을 즉시 인식합니다.",
+          how1_link: "지금 사용해 보기",
+          how2_title: "대체재 고르기",
+          how2_body:
+            "에이전트가 각 도구를 최고 평점의 오픈소스 대안과 매칭합니다. 확실한 승자? 자동 선택. 박빙? {you}",
+          how2_you: "당신이 결정합니다.",
+          how3_title: "원클릭 배포",
+          how3_body:
+            "전체 스택이 전용 HTTPS 서브도메인과 함께 AWS에 배포됩니다 — 또는 Docker Compose를 다운로드해 직접 실행하세요.",
+          feat_eyebrow: "기능",
+          feat_title: "{grad} 위한 모든 것",
+          feat_title_grad: "SaaS에서 벗어나기",
+          feat1_title: "{count}개 이상의 대안",
+          feat1_body:
+            "대체 대상 SaaS와 매핑된 엄선된 오픈소스 도구 카탈로그 — GitHub 스타 순으로 정렬되고 커뮤니티에서 검증되었습니다.",
+          feat2_title: "모든 선택은 직접 승인",
+          feat2_body:
+            "에이전트는 확실한 승자는 자동 선택하고, 박빙일 때는 당신에게 묻습니다. 블랙박스 결정은 없습니다 — 모든 옵션을 보고 최종 결정을 내리세요.",
+          feat3_title: "2분 만에 라이브",
+          feat3_body:
+            "클릭 한 번으로 AWS ECS Fargate에 배포됩니다. 각 서비스는 전용 HTTPS 서브도메인을 가지며 이 페이지에서 바로 미리 볼 수 있습니다.",
+          feat4_title: "오프라인에서도 작동",
+          feat4_body:
+            "모든 스택에는 프로덕션급 {compose}와 {env}가 포함됩니다. 다운로드하고, {cmd}, 끝.",
+          feat5_title: "내 데이터, 내 규칙",
+          feat5_body:
+            "셀프 호스팅은 벤더 락인도, 갑작스러운 가격 인상도, 약관 변경도 없다는 뜻입니다. 내 인프라, 내 조건.",
+          feat6_title: "결정 전에 미리보기",
+          feat6_body:
+            "배포된 서비스를 Exodus 안에서 바로 열어 보세요. 전환하기 전에 실제로 작동하는 모습을 확인할 수 있습니다.",
+          pricing_eyebrow: "요금",
+          pricing_title: "소프트웨어는 무료입니다. {grad}",
+          pricing_title_grad: "나머지는 저희가 맡습니다.",
+          price1_tier: "DIY",
+          price1_amount: "무료",
+          price1_blurb: "내 컴퓨터에서 무료로 스택을 구성하고 실행하세요.",
+          price1_f1: "에이전트 기반 스택 구성기",
+          price1_f2: "Docker Compose + .env 다운로드",
+          price1_f3: "내 컴퓨터에서 실행",
+          get_started: "시작하기",
+          price2_flag: "라이브 체험",
+          price2_tier: "호스티드 클라우드",
+          price2_unit: "스택당, 5시간 샌드박스",
+          price2_blurb:
+            "스택이 5시간 동안 라이브로 작동하는 모습을 확인하세요. 평가한 뒤 셀프 호스팅하거나 업그레이드하세요.",
+          price2_f1: "AWS 원클릭 배포",
+          price2_f2: "5시간 HTTPS 서브도메인",
+          price2_f3: "만료 전 구성 내보내기",
+          price3_flag: "손쉬운 비용 절감",
+          price3_tier: "완전 관리형",
+          price3_unit: "월별, 서버당",
+          price3_blurb:
+            "스택의 호스팅과 유지보수를 대신해 드립니다. 서버 관리 대신 본업에 집중하세요.",
+          price3_f1: "호스티드 클라우드의 모든 기능",
+          price3_f2: "업데이트·보안·가동률 관리",
+          price3_f3: "연중무휴 모니터링 및 지원",
+          contact_us: "문의하기",
+          closer_1: "도구를 소유하세요.",
+          closer_2: "소프트웨어 임대는 그만.",
+          closer_cta: "스택 만들기 — 무료",
+          footer_tagline: "SaaS에서 탈출하세요. 스택을 소유하세요.",
+          footer_product: "제품",
+          footer_community: "커뮤니티",
+          badge_star: "GitHub에서 스타 누르기",
+          badge_tested: "테스트 완료, 바로 실행 가능",
+          footer_built: "SuperAI NEXT Hackathon에서 제작",
+          close_label: "닫기",
+          exa_prompt:
+            "웹 검색을 사용하려면 Exa API 키를 입력하세요 (https://dashboard.exa.ai 에서 발급):",
+        },
+        fr: {
+          meta_title:
+            "Exodus — Éjectez-vous du SaaS. Auto-hébergez-vous en 2 minutes.",
+          meta_description:
+            "Choisissez les outils SaaS que vous payez. Un agent IA trouve des alternatives open source gratuites — récupère les fichiers Docker Compose — et vous livre une stack prête à l'emploi. Vous approuvez chaque choix.",
+          og_title: "Exodus — Éjectez-vous du SaaS",
+          og_description:
+            "Saisissez les outils SaaS que vous payez. Un agent déterministe trouve des alternatives open source, vous approuvez chaque choix, et un clic les déploie — auto-hébergées en moins de 2 minutes.",
+          banner_text:
+            "🏆 Conçu en {solo} au SuperAI NEXT Hackathon '26, Singapour",
+          banner_solo: "solo",
+          banner_cta: "Voir le concours →",
+          hero_title: "Quittez {tool}",
+          hero_sub:
+            "Dites-moi quels SaaS vous payez. Je trouve les meilleures {oss} et je les déploie sur {cloud}. Le tout en moins de deux minutes.",
+          hero_sub_oss: "alternatives open source",
+          hero_sub_cloud: "votre propre cloud",
+          prompt_placeholder:
+            "Quels outils utilisez-vous ? (ex. Notion, Slack, GitLab, Grafana…)",
+          prompt_cta: "Construire ma stack",
+          tool_identify_tools: "Identifier les outils",
+          tool_ai_match: "Demander à l'IA",
+          tool_match_alternative: "Chercher des alternatives",
+          tool_exa_search: "Rechercher sur le web",
+          tool_fetch_compose: "Récupérer le fichier compose",
+          tool_parse_image: "Analyser l'image",
+          tool_deploy_ecs: "Déployer sur AWS ECS",
+          tool_check_health: "Vérification de santé",
+          res_no_exact_match: "aucune correspondance exacte — on demande à l'IA",
+          res_no_tools: "aucun outil identifié",
+          res_saas_count: "{n} SaaS",
+          res_oss_count: "{n} open source",
+          res_no_match_catalog: "aucune correspondance dans le catalogue",
+          res_already_recommended: "{name} — déjà recommandé",
+          res_user_decides: "{n} candidats — l'utilisateur décide",
+          res_not_found: "introuvable",
+          res_provisioned: "provisionné",
+          res_all_healthy: "tout est sain ✓",
+          res_timeout: "délai dépassé",
+          res_error: "erreur : {msg}",
+          res_results: "{n} résultat(s)",
+          svc_count: "{n} service(s)",
+          thk_checking: "vérification…",
+          thk_selecting: "sélection…",
+          thk_waiting_choice: "en attente de votre choix…",
+          thk_starting_stacks: "démarrage de vos stacks…",
+          thk_waiting_payment: "en attente du paiement…",
+          thk_deploying_aws: "déploiement sur AWS…",
+          thk_waiting_services: "en attente des services…",
+          msg_no_tools_found:
+            "Je n'ai identifié aucun outil dans votre message — même avec l'aide de l'IA. Essayez de mentionner des outils précis — par exemple : « Nous utilisons Notion, Slack et Grafana » ou « Datadog, GitHub, GitLab ».",
+          msg_all_oss:
+            "Tous les outils trouvés sont **déjà open source** — vous êtes au top ! Aucun SaaS à remplacer. 🎉",
+          msg_desktop_not_running:
+            "L'application **Stack Desktop** n'est pas lancée. Ouvrez-la d'abord, puis réessayez. [Téléchargez-la ici](https://stack.lol/download).",
+          msg_payment_wait:
+            "Finalisez votre paiement dans la fenêtre Stripe. La suite se fera automatiquement.",
+          msg_payment_received: "✔ **Paiement reçu**",
+          msg_no_images:
+            "Impossible d'extraire les images Docker des fichiers compose. Le déploiement nécessite un champ `image:`.",
+          oss_already: "{name} est {green} — aucun remplacement nécessaire.",
+          oss_already_green: "déjà open source",
+          stars_license: "★ {stars} étoiles · {license}",
+          replaces_suffix: " · remplace {names}",
+          web_results_intro: "Voici ce que dit le web à propos de {name} :",
+          web_no_results: "Aucun résultat pertinent.",
+          web_powered: "Propulsé par Exa",
+          autosel_for: "Pour remplacer {saas}, je recommande :",
+          autosel_plain: "Je recommande :",
+          view_on_stacklol: "Voir sur stack.lol →",
+          search_web_btn: "🌐 Rechercher sur le web",
+          searching_btn: "🌐 recherche…",
+          search_web_title: "Rechercher plus d'infos sur le web",
+          autosel_ready: "✓ Open source et prêt à déployer",
+          autosel_selected_strong: "✓ Sélection automatique (le mieux noté)",
+          autosel_selected_best: "✓ Sélection automatique (meilleure option)",
+          hitl_msg:
+            "J'ai trouvé {alts} à {saas}. Laquelle convient le mieux à votre équipe ?",
+          hitl_alts: "{n} solides alternatives",
+          hitlrec_msg:
+            "J'ai trouvé {tools} qui correspondent à vos besoins. Choisissez ceux à déployer :",
+          hitlrec_tools: "{n} outils open source",
+          selected_btn: "✓ Sélectionné",
+          select_btn: "Sélectionner",
+          details_btn: "détails ↗",
+          more_btn: "plus",
+          more_btn_loading: "plus…",
+          confirm_selection: "Confirmer la sélection",
+          recipe_ready: "Prêt à déployer",
+          recipe_replaces: "remplace {name}",
+          open_btn: "Ouvrir ↗",
+          run_locally: "▶ Exécuter en local",
+          deploy_cloud: "Déployer dans le cloud • 1 $",
+          status_live: "en ligne",
+          status_error: "erreur",
+          status_starting: "démarrage…",
+          status_pending: "en attente",
+          status_deploying: "déploiement…",
+          cloud_live: "Votre stack est en ligne",
+          preview_btn: "Aperçu de {name} ↗",
+          open_name_btn: "Ouvrir {name} →",
+          countdown_expired: "Expiré",
+          countdown_hm: "{h} h {m} min restantes",
+          countdown_ms: "{m} min {s} s restantes",
+          hitl_waiting_bar: "En attente de votre sélection pour {names}",
+          social_proof:
+            "Des remplaçants pour tous ceux-ci — prêts à déployer :",
+          why_eyebrow: "Pourquoi s'auto-héberger",
+          why_title: "Trois raisons pour lesquelles les équipes {grad}",
+          why_title_grad: "quittent le SaaS.",
+          why1_title: "Souveraineté des données",
+          why1_body:
+            "Vos données restent sur votre infrastructure, dans votre région, sous votre juridiction. Pas d'accès tiers, pas de transferts transfrontaliers, pas de changements de politique surprises.",
+          why2_title: "Indépendance vis-à-vis des éditeurs",
+          why2_body:
+            "Pas de verrouillage. Pas de migrations forcées quand un éditeur pivote. Plus d'e-mails « cette fonctionnalité sera abandonnée ». Le logiciel vous appartient — il tourne selon vos règles, pour toujours.",
+          why3_title: "Coûts prévisibles",
+          why3_body:
+            "Les factures SaaS augmentent avec le nombre de sièges. Les coûts auto-hébergés augmentent avec l'usage. Une équipe de 20 personnes peut remplacer 2 000–5 000 $/mois d'abonnements par ~50 $/mois de calcul.",
+          ba_before_label: "Avec le SaaS",
+          ba_after_label: "Avec Exodus",
+          ba_before_1: "Vos données sur les serveurs d'un tiers",
+          ba_before_2: "Tarification par siège qui grossit avec l'équipe",
+          ba_before_3: "L'éditeur décide des changements de fonctionnalités",
+          ba_before_4: "Verrouillé — la migration est pénible",
+          ba_after_1: "Vos données sur votre propre infrastructure",
+          ba_after_2: "Coût de calcul fixe, sièges illimités",
+          ba_after_3: "Vous contrôlez chaque mise à jour",
+          ba_after_4: "Open source — changez quand vous voulez",
+          how_eyebrow: "Comment ça marche",
+          how_title: "Trois étapes. {grad}",
+          how_title_grad: "Vous gardez le contrôle.",
+          how1_title: "Nommez vos outils",
+          how1_body:
+            "Tapez les SaaS que votre équipe utilise — Notion, Slack, Jira, Datadog, peu importe. Exodus reconnaît instantanément {count}+ produits.",
+          how1_link: "Essayez maintenant",
+          how2_title: "Choisissez vos remplaçants",
+          how2_body:
+            "L'agent associe chaque outil à la meilleure alternative open source. Vainqueur évident ? Sélection automatique. Match serré ? {you}",
+          how2_you: "Vous décidez.",
+          how3_title: "Déployez en un clic",
+          how3_body:
+            "Toute votre stack est mise en ligne sur AWS avec son propre sous-domaine HTTPS — ou téléchargez le Docker Compose et lancez-le vous-même.",
+          feat_eyebrow: "Fonctionnalités",
+          feat_title: "Tout ce qu'il faut pour {grad}",
+          feat_title_grad: "vous libérer du SaaS.",
+          feat1_title: "{count}+ alternatives",
+          feat1_body:
+            "Un catalogue soigné d'outils open source mappés aux SaaS qu'ils remplacent — classés par étoiles GitHub et éprouvés par la communauté.",
+          feat2_title: "Vous approuvez chaque choix",
+          feat2_body:
+            "L'agent sélectionne automatiquement les vainqueurs évidents et vous consulte pour les cas serrés. Pas de décisions opaques — vous voyez chaque option et tranchez.",
+          feat3_title: "En ligne en deux minutes",
+          feat3_body:
+            "Un clic déploie sur AWS ECS Fargate. Chaque service reçoit son propre sous-domaine HTTPS — avec aperçu directement depuis cette page.",
+          feat4_title: "Fonctionne aussi hors ligne",
+          feat4_body:
+            "Chaque stack inclut un {compose} et un {env} de qualité production. Téléchargez, {cmd}, terminé.",
+          feat5_title: "Vos données, vos règles",
+          feat5_body:
+            "L'auto-hébergement, c'est zéro verrouillage éditeur, zéro hausse de prix surprise, zéro changement de CGU. Votre infrastructure, vos conditions.",
+          feat6_title: "Prévisualisez avant de vous engager",
+          feat6_body:
+            "Ouvrez vos services déployés directement dans Exodus. Voyez-les tourner en direct avant de faire la bascule.",
+          pricing_eyebrow: "Tarifs",
+          pricing_title: "Le logiciel est gratuit. {grad}",
+          pricing_title_grad: "On s'occupe du reste.",
+          price1_tier: "DIY",
+          price1_amount: "Gratuit",
+          price1_blurb:
+            "Composez et exécutez votre stack sur votre propre machine, gratuitement.",
+          price1_f1: "Compositeur de stack agentique",
+          price1_f2: "Téléchargement Docker Compose + .env",
+          price1_f3: "Exécution sur votre propre machine",
+          get_started: "Commencer",
+          price2_flag: "Essayez en direct",
+          price2_tier: "Cloud hébergé",
+          price2_unit: "par stack, sandbox de 5 h",
+          price2_blurb:
+            "Voyez votre stack tourner en direct pendant 5 heures. Évaluez-la, puis auto-hébergez ou passez au niveau supérieur.",
+          price2_f1: "Déploiement AWS en un clic",
+          price2_f2: "Sous-domaine HTTPS pendant 5 h",
+          price2_f3: "Export de la config avant expiration",
+          price3_flag: "Économies sans effort",
+          price3_tier: "Entièrement géré",
+          price3_unit: "par mois, par serveur",
+          price3_blurb:
+            "Nous hébergeons et maintenons votre stack pour vous. Concentrez-vous sur votre travail, pas sur les serveurs.",
+          price3_f1: "Tout le Cloud hébergé",
+          price3_f2: "Mises à jour, sécurité et disponibilité gérées",
+          price3_f3: "Surveillance et support 24 h/24, 7 j/7",
+          contact_us: "Contactez-nous",
+          closer_1: "Possédez vos outils.",
+          closer_2: "Arrêtez de louer vos logiciels.",
+          closer_cta: "Construire ma stack — gratuit",
+          footer_tagline: "Éjectez-vous du SaaS. Possédez votre stack.",
+          footer_product: "Produit",
+          footer_community: "Communauté",
+          badge_star: "Mettez-nous une étoile sur GitHub",
+          badge_tested: "Testées et prêtes à l'emploi",
+          footer_built: "Conçu au SuperAI NEXT Hackathon",
+          close_label: "Fermer",
+          exa_prompt:
+            "Saisissez votre clé API Exa pour activer la recherche web (obtenez-en une sur https://dashboard.exa.ai) :",
+        },
+      };
+
+      // Resolution order: ?lang= URL param → localStorage → browser
+      // language (first load only — the detected value is persisted so
+      // detection never overrides a previous visit) → English.
+      const detectLang = () => {
+        try {
+          const fromUrl = new URLSearchParams(window.location.search).get(
+            "lang",
+          );
+          if (fromUrl && I18N[fromUrl]) {
+            localStorage.setItem(LANG_KEY, fromUrl);
+            return fromUrl;
+          }
+          const stored = localStorage.getItem(LANG_KEY);
+          if (stored && I18N[stored]) return stored;
+          for (const tag of navigator.languages ?? [navigator.language]) {
+            const base = (tag ?? "").slice(0, 2).toLowerCase();
+            if (I18N[base]) {
+              localStorage.setItem(LANG_KEY, base);
+              return base;
+            }
+          }
+          localStorage.setItem(LANG_KEY, "en");
+        } catch {}
+        return "en";
+      };
+
+      let currentLang = detectLang();
+
+      // t: plain-string lookup with {param} interpolation.
+      const t = (key, params) => {
+        let s = I18N[currentLang]?.[key] ?? I18N.en[key] ?? key;
+        if (params)
+          for (const [k, v] of Object.entries(params))
+            s = s.split(`{${k}}`).join(String(v));
+        return s;
+      };
+
+      // tx: like t, but {slot}s resolve to React nodes — lets translations
+      // reorder rich elements (<strong>, <GradientText>…) per language.
+      const tx = (key, slots = {}) =>
+        t(key)
+          .split(/(\{\w+\})/g)
+          .map((part, i) => {
+            const m = part.match(/^\{(\w+)\}$/);
+            if (!m) return part;
+            return (
+              <React.Fragment key={i}>
+                {slots[m[1]] ?? `{${m[1]}}`}
+              </React.Fragment>
+            );
+          });
+
+      function LangSwitcher({ lang, onChange }) {
+        return (
+          <select
+            value={lang}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label="Language"
+            className="text-sm text-[#a8a8b3] border border-white/10 rounded-lg px-2 py-1 cursor-pointer"
+            style={{ background: "transparent" }}
+          >
+            {Object.entries(LANGS).map(([code, label]) => (
+              <option key={code} value={code} style={{ background: "#0a0a0f" }}>
+                {label}
+              </option>
+            ))}
+          </select>
+        );
+      }
+
       // ─── Countdown Hook & Badge ──────────────────────────────────────
 
       function useCountdown(expiresAt) {
@@ -208,11 +1128,18 @@
         }, [expiresAt]);
         if (remaining === null) return null;
         if (remaining <= 0)
-          return { h: 0, m: 0, s: 0, expired: true, label: "Expired" };
+          return {
+            h: 0,
+            m: 0,
+            s: 0,
+            expired: true,
+            label: t("countdown_expired"),
+          };
         const h = Math.floor(remaining / 3_600_000);
         const m = Math.floor((remaining % 3_600_000) / 60_000);
         const s = Math.floor((remaining % 60_000) / 1000);
-        const label = h > 0 ? `${h}h ${m}m remaining` : `${m}m ${s}s remaining`;
+        const label =
+          h > 0 ? t("countdown_hm", { h, m }) : t("countdown_ms", { m, s });
         return { h, m, s, expired: false, label };
       }
 
@@ -461,9 +1388,7 @@
       function getExaApiKey() {
         let key = localStorage.getItem("EXA_API_KEY");
         if (!key) {
-          key = window.prompt(
-            "Enter your Exa API key to enable web search (get one at https://dashboard.exa.ai):",
-          );
+          key = window.prompt(t("exa_prompt"));
           if (key) localStorage.setItem("EXA_API_KEY", key.trim());
         }
         return key?.trim() || null;
@@ -732,6 +1657,58 @@
       // ─── App ─────────────────────────────────────────────────────────────
 
       function App() {
+        // i18n state
+        const [lang, setLangState] = useState(currentLang);
+        const changeLang = (l) => {
+          if (!I18N[l] || l === lang) return;
+          currentLang = l;
+          try {
+            localStorage.setItem(LANG_KEY, l);
+          } catch {}
+          try {
+            const url = new URL(window.location.href);
+            if (l === "en") url.searchParams.delete("lang");
+            else url.searchParams.set("lang", l);
+            history.replaceState(null, "", url);
+          } catch {}
+          setLangState(l);
+        };
+
+        // Keep document head in sync with the active language (SEO)
+        useEffect(() => {
+          const q = (sel) => document.querySelector(sel);
+          const pageUrl =
+            lang === "en" ? `${SITE_URL}/` : `${SITE_URL}/?lang=${lang}`;
+          document.documentElement.lang = HTML_LANGS[lang];
+          document.title = t("meta_title");
+          q('meta[name="description"]')?.setAttribute(
+            "content",
+            t("meta_description"),
+          );
+          q('link[rel="canonical"]')?.setAttribute("href", pageUrl);
+          q('meta[property="og:url"]')?.setAttribute("content", pageUrl);
+          q('meta[property="og:title"]')?.setAttribute(
+            "content",
+            t("og_title"),
+          );
+          q('meta[property="og:description"]')?.setAttribute(
+            "content",
+            t("og_description"),
+          );
+          q('meta[property="og:locale"]')?.setAttribute(
+            "content",
+            OG_LOCALES[lang],
+          );
+          q('meta[name="twitter:title"]')?.setAttribute(
+            "content",
+            t("og_title"),
+          );
+          q('meta[name="twitter:description"]')?.setAttribute(
+            "content",
+            t("og_description"),
+          );
+        }, [lang]);
+
         // Catalog state
         const [stacks, setStacks] = useState([]);
         const approxStackCount = 10 * Math.floor(stacks.length / 10) || 200;
@@ -848,7 +1825,7 @@
             );
             updateMsg(toolId, {
               thinking: false,
-              result: `${results.length} result${results.length === 1 ? "" : "s"}`,
+              result: t("res_results", { n: results.length }),
             });
             addMsg({
               role: "ai",
@@ -861,7 +1838,7 @@
           } catch (e) {
             updateMsg(toolId, {
               thinking: false,
-              result: `error: ${e.message}`,
+              result: t("res_error", { msg: e.message }),
             });
           } finally {
             setSearchingSlugs((prev) => {
@@ -973,7 +1950,7 @@
             if (files[slug].env) parts.push(".env");
             updateMsg(fetchToolId, {
               thinking: false,
-              result: parts.length ? parts.join(" + ") : "not found",
+              result: parts.length ? parts.join(" + ") : t("res_not_found"),
             });
           }
 
@@ -1021,7 +1998,7 @@
               agent: "Exodus",
               type: "text",
               thinking: false,
-              text: "The **Stack Desktop app** isn't running. Open it first, then try again. [Get it here](https://stack.lol/download).",
+              text: t("msg_desktop_not_running"),
             });
             return;
           }
@@ -1040,7 +2017,7 @@
             role: "ai",
             agent: "Exodus",
             type: "run-progress",
-            thinking: "starting your stacks…",
+            thinking: t("thk_starting_stacks"),
             slugs,
             logs: {},
           });
@@ -1086,8 +2063,8 @@
             role: "ai",
             agent: "Exodus",
             type: "text",
-            thinking: "waiting for payment…",
-            text: "Complete your payment in the Stripe window. This will continue automatically.",
+            thinking: t("thk_waiting_payment"),
+            text: t("msg_payment_wait"),
           });
 
           // Poll until the Stripe window is closed
@@ -1096,7 +2073,7 @@
               clearInterval(poll);
               updateMsg(waitId, {
                 thinking: false,
-                text: "✔ **Payment received**",
+                text: t("msg_payment_received"),
               });
               addMsg({
                 role: "ai",
@@ -1149,7 +2126,7 @@
               agent: "Exodus",
               type: "text",
               thinking: false,
-              text: "Could not extract Docker images from the compose files. Deploy requires an `image:` field.",
+              text: t("msg_no_images"),
             });
             setIsDeploying(false);
             return;
@@ -1159,7 +2136,7 @@
           const deployToolId = addMsg({
             type: "tool-use",
             tool: "deploy_ecs",
-            input: `${stackPayload.length} service(s)`,
+            input: t("svc_count", { n: stackPayload.length }),
             thinking: true,
           });
 
@@ -1167,7 +2144,7 @@
             role: "ai",
             agent: "Exodus",
             type: "cloud-deploy",
-            thinking: "deploying to AWS…",
+            thinking: t("thk_deploying_aws"),
             deployments: [],
             services: [],
           });
@@ -1182,7 +2159,10 @@
             if (!resp.ok)
               throw new Error(data.error || `Deploy failed (${resp.status})`);
 
-            updateMsg(deployToolId, { thinking: false, result: "provisioned" });
+            updateMsg(deployToolId, {
+              thinking: false,
+              result: t("res_provisioned"),
+            });
             const expiresAt = Date.now() + SANDBOX_TTL_MS;
             setSandboxExpiresAt(expiresAt);
             updateMsg(deployMsgId, {
@@ -1194,7 +2174,7 @@
             const healthToolId = addMsg({
               type: "tool-use",
               tool: "check_health",
-              input: `${stackPayload.length} service(s)`,
+              input: t("svc_count", { n: stackPayload.length }),
               thinking: true,
             });
 
@@ -1202,7 +2182,10 @@
             let attempts = 0;
             const poll = async () => {
               if (attempts++ > 30) {
-                updateMsg(healthToolId, { thinking: false, result: "timeout" });
+                updateMsg(healthToolId, {
+                  thinking: false,
+                  result: t("res_timeout"),
+                });
                 updateMsg(deployMsgId, { thinking: false });
                 setIsDeploying(false);
                 return;
@@ -1220,13 +2203,13 @@
 
                 updateMsg(deployMsgId, {
                   services: relevant,
-                  thinking: allHealthy ? false : "waiting for services…",
+                  thinking: allHealthy ? false : t("thk_waiting_services"),
                 });
 
                 if (allHealthy) {
                   updateMsg(healthToolId, {
                     thinking: false,
-                    result: "all healthy ✓",
+                    result: t("res_all_healthy"),
                   });
                   setIsDeploying(false);
                   return;
@@ -1238,7 +2221,7 @@
           } catch (e) {
             updateMsg(deployToolId, {
               thinking: false,
-              result: `error: ${e.message}`,
+              result: t("res_error", { msg: e.message }),
             });
             updateMsg(deployMsgId, {
               thinking: false,
@@ -1304,7 +2287,7 @@
             // Pattern matching found nothing — escalate to generative AI
             updateMsg(identifyId, {
               thinking: false,
-              result: "no exact match — asking AI",
+              result: t("res_no_exact_match"),
             });
 
             const aiId = addMsg({
@@ -1337,14 +2320,12 @@
               ];
               updateMsg(aiId, {
                 thinking: false,
-                result: aiNames.length
-                  ? aiNames.join(", ")
-                  : "no tools identified",
+                result: aiNames.length ? aiNames.join(", ") : t("res_no_tools"),
               });
             } catch (e) {
               updateMsg(aiId, {
                 thinking: false,
-                result: `error: ${e.message}`,
+                result: t("res_error", { msg: e.message }),
               });
             }
 
@@ -1354,7 +2335,7 @@
                 agent: "Exodus",
                 type: "text",
                 thinking: false,
-                text: 'I couldn\'t identify any tools in your message — even with AI assistance. Try mentioning specific tools — for example: "We use Notion, Slack, and Grafana" or "Datadog, GitHub, GitLab".',
+                text: t("msg_no_tools_found"),
               });
               setPhase("idle");
               return;
@@ -1362,9 +2343,9 @@
           } else {
             const identifyParts = [];
             if (uniqueMatched.length)
-              identifyParts.push(`${uniqueMatched.length} SaaS`);
+              identifyParts.push(t("res_saas_count", { n: uniqueMatched.length }));
             if (uniqueOSS.length)
-              identifyParts.push(`${uniqueOSS.length} open-source`);
+              identifyParts.push(t("res_oss_count", { n: uniqueOSS.length }));
             const allNames = [
               ...uniqueMatched.map((t) => t.name),
               ...uniqueOSS.map((s) => s.name),
@@ -1388,7 +2369,7 @@
                 role: "ai",
                 agent: "Exodus",
                 type: "oss-already",
-                thinking: "checking…",
+                thinking: t("thk_checking"),
                 stack: oss,
                 replacesNames: (oss.alternativeTo ?? []).map(saasDisplayName),
               });
@@ -1408,7 +2389,7 @@
               role: "ai",
               agent: "Exodus",
               type: "auto-select",
-              thinking: "selecting…",
+              thinking: t("thk_selecting"),
               saasSlug: oss.slug,
               saasName: null,
               stack: oss,
@@ -1425,7 +2406,7 @@
               role: "ai",
               agent: "Exodus",
               type: "hitl-recommend",
-              thinking: "waiting for your choice…",
+              thinking: t("thk_waiting_choice"),
               candidates: aiRecommendedList,
             });
           }
@@ -1460,7 +2441,7 @@
             if (best && alreadySelectedSlugs.has(best.slug)) {
               updateMsg(matchId, {
                 thinking: false,
-                result: `${best.name} — already recommended`,
+                result: t("res_already_recommended", { name: best.name }),
               });
               continue;
             }
@@ -1468,7 +2449,7 @@
             if (candidates.length === 0) {
               updateMsg(matchId, {
                 thinking: false,
-                result: "no match in catalog",
+                result: t("res_no_match_catalog"),
               });
             } else if (strongCandidates.length <= 1) {
               newSelections[tool.slug] = best;
@@ -1481,7 +2462,7 @@
                 role: "ai",
                 agent: "Exodus",
                 type: "auto-select",
-                thinking: "selecting…",
+                thinking: t("thk_selecting"),
                 saasSlug: tool.slug,
                 saasName: tool.name,
                 stack: best,
@@ -1497,20 +2478,24 @@
               if (filteredCandidates.length === 0) {
                 updateMsg(matchId, {
                   thinking: false,
-                  result: `${strongCandidates[0].name} — already recommended`,
+                  result: t("res_already_recommended", {
+                    name: strongCandidates[0].name,
+                  }),
                 });
                 continue;
               }
               updateMsg(matchId, {
                 thinking: false,
-                result: `${filteredCandidates.length} candidates — user decides`,
+                result: t("res_user_decides", {
+                  n: filteredCandidates.length,
+                }),
               });
               newPendingHITL.push(tool.slug);
               addMsg({
                 role: "ai",
                 agent: "Exodus",
                 type: "hitl",
-                thinking: "waiting for your choice…",
+                thinking: t("thk_waiting_choice"),
                 saasSlug: tool.slug,
                 saasName: tool.name,
                 candidates: filteredCandidates,
@@ -1534,7 +2519,7 @@
               agent: "Exodus",
               type: "text",
               thinking: false,
-              text: "All the tools I found are **already open-source** — you're in great shape! No SaaS to replace. 🎉",
+              text: t("msg_all_oss"),
             });
             setPhase("idle");
           }
@@ -1569,7 +2554,9 @@
                     )}
                   </span>
                   <code className="font-semibold text-[#c9c9d4] text-[13px] bg-transparent p-0">
-                    {def.label || msg.tool}
+                    {I18N.en[`tool_${msg.tool}`]
+                      ? t(`tool_${msg.tool}`)
+                      : def.label || msg.tool}
                   </code>
                   {msg.input && (
                     <span className="opacity-50 text-xs whitespace-nowrap overflow-hidden text-ellipsis">
@@ -1621,11 +2608,14 @@
                     />
                     <div>
                       <p style={{ margin: "0 0 4px" }}>
-                        <strong>{msg.stack.name}</strong> is{" "}
-                        <span style={{ color: "#22c55e", fontWeight: 600 }}>
-                          already open-source
-                        </span>{" "}
-                        — no replacement needed.
+                        {tx("oss_already", {
+                          name: <strong>{msg.stack.name}</strong>,
+                          green: (
+                            <span style={{ color: "#22c55e", fontWeight: 600 }}>
+                              {t("oss_already_green")}
+                            </span>
+                          ),
+                        })}
                       </p>
                       <p
                         style={{
@@ -1637,10 +2627,16 @@
                         {msg.stack.description}
                       </p>
                       <span style={{ fontSize: "0.8rem", color: "#a8a8b3" }}>
-                        ★ {(msg.stack.stars ?? 0).toLocaleString()} stars ·{" "}
-                        {msg.stack.license}
+                        {t("stars_license", {
+                          stars: (msg.stack.stars ?? 0).toLocaleString(),
+                          license: msg.stack.license,
+                        })}
                         {msg.replacesNames?.length > 0 && (
-                          <> · replaces {msg.replacesNames.join(", ")}</>
+                          <>
+                            {t("replaces_suffix", {
+                              names: msg.replacesNames.join(", "),
+                            })}
+                          </>
                         )}
                       </span>
                     </div>
@@ -1657,12 +2653,13 @@
                   thinking={msg.thinking}
                 >
                   <p style={{ margin: "0 0 12px" }}>
-                    Here's what the web says about{" "}
-                    <strong>{msg.stackName}</strong>:
+                    {tx("web_results_intro", {
+                      name: <strong>{msg.stackName}</strong>,
+                    })}
                   </p>
                   {msg.results.length === 0 ? (
                     <p style={{ margin: 0, color: "#a8a8b3" }}>
-                      No relevant results found.
+                      {t("web_no_results")}
                     </p>
                   ) : (
                     <div className="flex flex-col gap-2">
@@ -1703,7 +2700,7 @@
                     </div>
                   )}
                   <p className="text-[0.7rem] text-[#5a5a66] m-0 mt-2">
-                    Powered by Exa
+                    {t("web_powered")}
                   </p>
                 </ChatBubble>
               );
@@ -1717,14 +2714,11 @@
                   thinking={msg.thinking}
                 >
                   <p style={{ margin: "0 0 12px" }}>
-                    {msg.saasName ? (
-                      <>
-                        For replacing <strong>{msg.saasName}</strong>, I
-                        recommend:
-                      </>
-                    ) : (
-                      <>I recommend:</>
-                    )}
+                    {msg.saasName
+                      ? tx("autosel_for", {
+                          saas: <strong>{msg.saasName}</strong>,
+                        })
+                      : t("autosel_plain")}
                   </p>
                   <GlassCard>
                     <GlassCard.Icon>
@@ -1738,8 +2732,10 @@
                       {msg.stack.description}
                       <br />
                       <span style={{ color: "#a8a8b3", fontSize: "0.85rem" }}>
-                        ★ {(msg.stack.stars ?? 0).toLocaleString()} stars ·{" "}
-                        {msg.stack.license}
+                        {t("stars_license", {
+                          stars: (msg.stack.stars ?? 0).toLocaleString(),
+                          license: msg.stack.license,
+                        })}
                       </span>
                     </GlassCard.Body>
                     <div style={{ display: "flex", gap: 16 }}>
@@ -1763,7 +2759,7 @@
                           textAlign: "left",
                         }}
                       >
-                        View on stack.lol →
+                        {t("view_on_stacklol")}
                       </button>
                       <button
                         onClick={() => handleWebSearch(msg.stack)}
@@ -1781,8 +2777,8 @@
                         }}
                       >
                         {searchingSlugs.has(msg.stack.slug)
-                          ? "🌐 searching…"
-                          : "🌐 Search the web"}
+                          ? t("searching_btn")
+                          : t("search_web_btn")}
                       </button>
                     </div>
                   </GlassCard>
@@ -1793,14 +2789,11 @@
                       fontSize: "0.9rem",
                     }}
                   >
-                    {msg.recommended ? (
-                      "✓ Open-source and ready to deploy"
-                    ) : (
-                      <>
-                        ✓ Auto-selected{" "}
-                        {msg.isStrong ? "(top-rated)" : "(best available)"}
-                      </>
-                    )}
+                    {msg.recommended
+                      ? t("autosel_ready")
+                      : msg.isStrong
+                        ? t("autosel_selected_strong")
+                        : t("autosel_selected_best")}
                   </p>
                 </ChatBubble>
               );
@@ -1814,12 +2807,14 @@
                   thinking={msg.thinking}
                 >
                   <p style={{ margin: "0 0 12px" }}>
-                    I found{" "}
-                    <GradientText>
-                      {msg.candidates.length} strong alternatives
-                    </GradientText>{" "}
-                    to <strong>{msg.saasName}</strong>. Which one fits your team
-                    best?
+                    {tx("hitl_msg", {
+                      alts: (
+                        <GradientText>
+                          {t("hitl_alts", { n: msg.candidates.length })}
+                        </GradientText>
+                      ),
+                      saas: <strong>{msg.saasName}</strong>,
+                    })}
                   </p>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 mt-2">
                     {msg.candidates.map((c) => {
@@ -1877,7 +2872,7 @@
                               disabled={!msg.thinking}
                               onClick={() => handleHITLSelect(msg.saasSlug, c)}
                             >
-                              {isSelected ? "✓ Selected" : "Select"}
+                              {isSelected ? t("selected_btn") : t("select_btn")}
                             </Button>
                             <button
                               onClick={() =>
@@ -1898,12 +2893,12 @@
                                 textUnderlineOffset: "2px",
                               }}
                             >
-                              details ↗
+                              {t("details_btn")}
                             </button>
                             <button
                               onClick={() => handleWebSearch(c)}
                               disabled={searchingSlugs.has(c.slug)}
-                              title="Search the web for more info"
+                              title={t("search_web_title")}
                               style={{
                                 fontSize: "0.8rem",
                                 color: "#8a8a96",
@@ -1915,7 +2910,9 @@
                                 textUnderlineOffset: "2px",
                               }}
                             >
-                              {searchingSlugs.has(c.slug) ? "more…" : "more"}
+                              {searchingSlugs.has(c.slug)
+                                ? t("more_btn_loading")
+                                : t("more_btn")}
                             </button>
                           </div>
                         </div>
@@ -1934,11 +2931,13 @@
                   thinking={msg.thinking}
                 >
                   <p style={{ margin: "0 0 12px" }}>
-                    I found{" "}
-                    <GradientText>
-                      {msg.candidates.length} open-source tools
-                    </GradientText>{" "}
-                    that match your needs. Pick the ones you'd like to deploy:
+                    {tx("hitlrec_msg", {
+                      tools: (
+                        <GradientText>
+                          {t("hitlrec_tools", { n: msg.candidates.length })}
+                        </GradientText>
+                      ),
+                    })}
                   </p>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 mt-2">
                     {msg.candidates.map((c) => {
@@ -1995,7 +2994,7 @@
                               disabled={!msg.thinking}
                               onClick={() => handleRecommendToggle(c.slug, c)}
                             >
-                              {isSelected ? "✓ Selected" : "Select"}
+                              {isSelected ? t("selected_btn") : t("select_btn")}
                             </Button>
                             <button
                               onClick={() =>
@@ -2016,12 +3015,12 @@
                                 textUnderlineOffset: "2px",
                               }}
                             >
-                              details ↗
+                              {t("details_btn")}
                             </button>
                             <button
                               onClick={() => handleWebSearch(c)}
                               disabled={searchingSlugs.has(c.slug)}
-                              title="Search the web for more info"
+                              title={t("search_web_title")}
                               style={{
                                 fontSize: "0.8rem",
                                 color: "#8a8a96",
@@ -2033,7 +3032,9 @@
                                 textUnderlineOffset: "2px",
                               }}
                             >
-                              {searchingSlugs.has(c.slug) ? "more…" : "more"}
+                              {searchingSlugs.has(c.slug)
+                                ? t("more_btn_loading")
+                                : t("more_btn")}
                             </button>
                           </div>
                         </div>
@@ -2056,7 +3057,7 @@
                         }
                         onClick={handleRecommendConfirm}
                       >
-                        Confirm selection
+                        {t("confirm_selection")}
                       </Button>
                     </div>
                   )}
@@ -2074,7 +3075,7 @@
                 >
                   {ready && (
                     <p style={{ margin: "0 0 16px" }}>
-                      <GradientText>Ready to deploy</GradientText>
+                      <GradientText>{t("recipe_ready")}</GradientText>
                     </p>
                   )}
 
@@ -2103,7 +3104,9 @@
                             <span className="text-[#a8a8b3]">
                               {stack.recommended
                                 ? stack.description
-                                : `replaces ${saasDisplayName(saasSlug)}`}
+                                : t("recipe_replaces", {
+                                    name: saasDisplayName(saasSlug),
+                                  })}
                             </span>
                             {status === "live" && (
                               <button
@@ -2116,7 +3119,7 @@
                                 }
                                 className="text-xs text-cyan-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 font-mono text-right"
                               >
-                                Open ↗
+                                {t("open_btn")}
                               </button>
                             )}
                           </div>
@@ -2141,7 +3144,7 @@
                           loading={isRunning}
                           onClick={() => handleRunAll(msg.allSelections)}
                         >
-                          ▶ Run locally
+                          {t("run_locally")}
                         </Button>
 
                         <Button
@@ -2155,7 +3158,7 @@
                             name="icloud"
                             className="inline-flex w-4 align-middle mr-2"
                           />
-                          Deploy to cloud • $1
+                          {t("deploy_cloud")}
                         </Button>
                       </div>
 
@@ -2206,12 +3209,12 @@
                               : "#8a8a96";
                       const label =
                         status === "live"
-                          ? "live"
+                          ? t("status_live")
                           : status === "error"
-                            ? "error"
+                            ? t("status_error")
                             : status === "running"
-                              ? "starting…"
-                              : "pending";
+                              ? t("status_starting")
+                              : t("status_pending");
                       return (
                         <div key={slug}>
                           <div
@@ -2247,7 +3250,7 @@
                                 }
                                 className="text-[0.75rem] text-cyan-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 font-mono text-right"
                               >
-                                Open ↗
+                                {t("open_btn")}
                               </button>
                             )}
                           </div>
@@ -2294,7 +3297,7 @@
                         flexWrap: "wrap",
                       }}
                     >
-                      <GradientText>Your stack is live</GradientText>
+                      <GradientText>{t("cloud_live")}</GradientText>
                       <CountdownBadge expiresAt={msg.expiresAt} />
                     </div>
                   )}
@@ -2344,7 +3347,7 @@
                                     fontSize: "0.8rem",
                                   }}
                                 >
-                                  deploying…
+                                  {t("status_deploying")}
                                 </span>
                               )}
                             </div>
@@ -2373,7 +3376,7 @@
                                     }
                                   }}
                                 >
-                                  Preview {d.name} ↗
+                                  {t("preview_btn", { name: d.name })}
                                 </Button>
                                 <Button
                                   variant="glow"
@@ -2382,7 +3385,7 @@
                                   href={d.url}
                                   target="_blank"
                                 >
-                                  Open {d.name} →
+                                  {t("open_name_btn", { name: d.name })}
                                 </Button>
                                 <a
                                   href={d.url}
@@ -2425,21 +3428,25 @@
             {/* ─── Announcement bar ─── */}
             <StickyBanner
               hideSparkle
-              trailing={<a href="https://superai.com">View contest →</a>}
+              trailing={<a href="https://superai.com">{t("banner_cta")}</a>}
             >
-              🏆 Built <a href="https://github.com/arnaud">solo</a> at SuperAI
-              NEXT Hackathon '26, Singapore
+              {tx("banner_text", {
+                solo: (
+                  <a href="https://github.com/arnaud">{t("banner_solo")}</a>
+                ),
+              })}
             </StickyBanner>
 
             {/* ─── Hero ─── */}
             <section style={{ position: "relative", overflow: "hidden" }}>
               <Aurora animated />
-              <div className="max-w-[1100px] mx-auto px-6 pt-4 pb-0 -mb-4">
+              <div className="relative z-10 max-w-[1100px] mx-auto px-6 pt-4 pb-0 -mb-4 flex items-center justify-between">
                 <h1 className="text-[1.4rem] leading-tight font-medium">
                   <a href=".">
                     <Sparkle static solid glyph="⏏" /> Exodus
                   </a>
                 </h1>
+                <LangSwitcher lang={lang} onChange={changeLang} />
               </div>
 
               <div className="pt-[120px] pb-[120px] -mb-8" id="picker">
@@ -2448,7 +3455,8 @@
                     className="font-extrabold leading-tight m-0 whitespace-nowrap"
                     style={{ fontSize: "clamp(2.2rem, 5vw, 3.6rem)" }}
                   >
-                    Eject from{" "}
+                    {tx("hero_title", {
+                      tool: (
                     <GradientText>
                       <Rotator
                         key={catalog.length > 0 ? "catalog" : "static"}
@@ -2481,20 +3489,23 @@
                         gradient
                       />
                     </GradientText>
+                      ),
+                    })}
                   </h1>
 
                   <p className="text-lg leading-relaxed text-[#a8a8b3] max-w-[640px] mx-auto">
-                    Tell me which SaaS you pay for. I'll find the best{" "}
-                    <strong>open-source alternatives</strong>, and deploy them
-                    to <strong>your own cloud</strong>. All in under two
-                    minutes.
+                    {tx("hero_sub", {
+                      oss: <strong>{t("hero_sub_oss")}</strong>,
+                      cloud: <strong>{t("hero_sub_cloud")}</strong>,
+                    })}
                   </p>
 
                   <HighlightedPrompt
+                    key={lang}
                     catalog={catalog}
                     stacks={stacks}
-                    placeholder="Which tools do you use? (e.g. Notion, Slack, GitLab, Grafana…)"
-                    ctaLabel="Build my stack"
+                    placeholder={t("prompt_placeholder")}
+                    ctaLabel={t("prompt_cta")}
                     onSubmit={handleSubmit}
                   />
 
@@ -2531,12 +3542,15 @@
                     <div className="flex items-center gap-2 px-4 py-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-[10px] text-sm text-amber-400">
                       <Sparkle />
                       <span>
-                        Waiting for your selection on{" "}
-                        <strong>
-                          {pendingHITL
-                            .map((s) => saasDisplayName(s))
-                            .join(", ")}
-                        </strong>
+                        {tx("hitl_waiting_bar", {
+                          names: (
+                            <strong>
+                              {pendingHITL
+                                .map((s) => saasDisplayName(s))
+                                .join(", ")}
+                            </strong>
+                          ),
+                        })}
                       </span>
                     </div>
                   )}
@@ -2547,7 +3561,7 @@
             {/* ─── Social proof ─── */}
             <section className="max-w-[1100px] mx-auto px-6 py-20">
               <p className="text-center text-[#8a8a96] mb-4">
-                Replacements for all of these — ready to deploy:
+                {t("social_proof")}
               </p>
               <LogoMarquee
                 pauseOnHover
@@ -2588,64 +3602,53 @@
             {/* ─── Why ─── */}
             <section className="max-w-[1100px] mx-auto px-6 py-20" id="why">
               <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
-                <EyebrowPill icon={false}>Why self-host</EyebrowPill>
+                <EyebrowPill icon={false}>{t("why_eyebrow")}</EyebrowPill>
                 <h2
                   className="font-bold leading-tight mt-3"
                   style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
                 >
-                  Three reasons teams{" "}
-                  <GradientText>eject from SaaS.</GradientText>
+                  {tx("why_title", {
+                    grad: <GradientText>{t("why_title_grad")}</GradientText>,
+                  })}
                 </h2>
               </div>
 
               <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>🏛️</GlassCard.Icon>
-                  <GlassCard.Title>Data sovereignty</GlassCard.Title>
-                  <GlassCard.Body>
-                    Your data lives on your infrastructure, in your region,
-                    under your jurisdiction. No third-party access, no
-                    cross-border transfers, no surprise policy changes.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("why1_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("why1_body")}</GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>🔓</GlassCard.Icon>
-                  <GlassCard.Title>Vendor independence</GlassCard.Title>
-                  <GlassCard.Body>
-                    No lock-in. No forced migrations when a vendor pivots. No
-                    "we're sunsetting this feature" emails. You own the software
-                    — it runs on your terms, forever.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("why2_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("why2_body")}</GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>📉</GlassCard.Icon>
-                  <GlassCard.Title>Predictable costs</GlassCard.Title>
-                  <GlassCard.Body>
-                    SaaS bills scale with seats. Self-hosted costs scale with
-                    usage. A 20-person team can replace $2,000–5,000/mo in
-                    subscriptions with ~$50/mo of compute.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("why3_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("why3_body")}</GlassCard.Body>
                 </GlassCard>
               </div>
               <br />
 
               <BeforeAfter
                 brand="Exodus"
-                beforeLabel="With SaaS"
-                afterLabel="With Exodus"
+                beforeLabel={t("ba_before_label")}
+                afterLabel={t("ba_after_label")}
                 before={[
-                  "Data on someone else's servers",
-                  "Per-seat pricing that grows with your team",
-                  "Vendor decides when features change",
-                  "Locked in — migration is painful",
+                  t("ba_before_1"),
+                  t("ba_before_2"),
+                  t("ba_before_3"),
+                  t("ba_before_4"),
                 ]}
                 after={[
-                  "Data on your own infrastructure",
-                  "Fixed compute cost, unlimited seats",
-                  "You control every update",
-                  "Open source — switch anytime",
+                  t("ba_after_1"),
+                  t("ba_after_2"),
+                  t("ba_after_3"),
+                  t("ba_after_4"),
                 ]}
               />
             </section>
@@ -2656,43 +3659,42 @@
               id="how-it-works"
             >
               <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
-                <EyebrowPill icon={false}>How it works</EyebrowPill>
+                <EyebrowPill icon={false}>{t("how_eyebrow")}</EyebrowPill>
                 <h2
                   className="font-bold leading-tight mt-3"
                   style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
                 >
-                  Three steps. <GradientText>You stay in control.</GradientText>
+                  {tx("how_title", {
+                    grad: <GradientText>{t("how_title_grad")}</GradientText>,
+                  })}
                 </h2>
               </div>
 
               <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
                 <GlassCard breathing glowOnHover data-numbering="1">
-                  <GlassCard.Title>Name your tools</GlassCard.Title>
+                  <GlassCard.Title>{t("how1_title")}</GlassCard.Title>
                   <GlassCard.Body>
-                    Type the SaaS your team uses — Notion, Slack, Jira, Datadog,
-                    whatever. Exodus recognizes{" "}
-                    {10 * Math.floor(catalog.length / 10) || "100"}+ products
-                    instantly.
+                    {t("how1_body", {
+                      count: 10 * Math.floor(catalog.length / 10) || "100",
+                    })}
                   </GlassCard.Body>
-                  <GlassCard.Link href="#picker">Try it now</GlassCard.Link>
+                  <GlassCard.Link href="#picker">
+                    {t("how1_link")}
+                  </GlassCard.Link>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover data-numbering="2">
-                  <GlassCard.Title>Pick your replacements</GlassCard.Title>
+                  <GlassCard.Title>{t("how2_title")}</GlassCard.Title>
                   <GlassCard.Body>
-                    The agent matches each tool to the top-rated open-source
-                    alternative. Clear winner? Auto-selected. Close call?{" "}
-                    <strong>You decide.</strong>
+                    {tx("how2_body", {
+                      you: <strong>{t("how2_you")}</strong>,
+                    })}
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover data-numbering="3">
-                  <GlassCard.Title>Deploy in one click</GlassCard.Title>
-                  <GlassCard.Body>
-                    Your entire stack goes live on AWS with its own HTTPS
-                    subdomain — or download the Docker Compose and run it
-                    yourself.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("how3_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("how3_body")}</GlassCard.Body>
                 </GlassCard>
               </div>
             </section>
@@ -2703,13 +3705,14 @@
               id="features"
             >
               <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
-                <EyebrowPill icon={false}>Features</EyebrowPill>
+                <EyebrowPill icon={false}>{t("feat_eyebrow")}</EyebrowPill>
                 <h2
                   className="font-bold leading-tight mt-3"
                   style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
                 >
-                  Everything you need to{" "}
-                  <GradientText>break free from SaaS.</GradientText>
+                  {tx("feat_title", {
+                    grad: <GradientText>{t("feat_title_grad")}</GradientText>,
+                  })}
                 </h2>
               </div>
 
@@ -2719,67 +3722,51 @@
                     <SiImg name="apachearrow" className="w-5" />
                   </GlassCard.Icon>
                   <GlassCard.Title>
-                    {approxStackCount}+ alternatives
+                    {t("feat1_title", { count: approxStackCount })}
                   </GlassCard.Title>
-                  <GlassCard.Body>
-                    A curated catalog of open-source tools mapped to the SaaS
-                    they replace — ranked by GitHub stars and battle-tested by
-                    the community.
-                  </GlassCard.Body>
+                  <GlassCard.Body>{t("feat1_body")}</GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>
                     <SiImg name="ticktick" className="w-5" />
                   </GlassCard.Icon>
-                  <GlassCard.Title>You approve every choice</GlassCard.Title>
-                  <GlassCard.Body>
-                    The agent auto-selects clear winners and asks you on close
-                    calls. No black-box decisions — you see every option and
-                    make the final call.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("feat2_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("feat2_body")}</GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>
                     <SiImg name="iCloud" className="w-5" />
                   </GlassCard.Icon>
-                  <GlassCard.Title>Live in two minutes</GlassCard.Title>
-                  <GlassCard.Body>
-                    One click deploys to AWS ECS Fargate. Each service gets its
-                    own HTTPS subdomain — preview it right from this page.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("feat3_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("feat3_body")}</GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>
                     <SiImg name="Docker" className="w-5" />
                   </GlassCard.Icon>
-                  <GlassCard.Title>Works offline too</GlassCard.Title>
+                  <GlassCard.Title>{t("feat4_title")}</GlassCard.Title>
                   <GlassCard.Body>
-                    Every stack comes with a production-grade{" "}
-                    <code>compose.yaml</code> and <code>.env</code>. Download,{" "}
-                    <code>docker compose up</code>, done.
+                    {tx("feat4_body", {
+                      compose: <code>compose.yaml</code>,
+                      env: <code>.env</code>,
+                      cmd: <code>docker compose up</code>,
+                    })}
                   </GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>🔒</GlassCard.Icon>
-                  <GlassCard.Title>Your data, your rules</GlassCard.Title>
-                  <GlassCard.Body>
-                    Self-hosted means no vendor lock-in, no surprise price
-                    hikes, no terms-of-service changes. Your infrastructure,
-                    your terms.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("feat5_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("feat5_body")}</GlassCard.Body>
                 </GlassCard>
 
                 <GlassCard breathing glowOnHover>
                   <GlassCard.Icon>👀</GlassCard.Icon>
-                  <GlassCard.Title>Preview before you commit</GlassCard.Title>
-                  <GlassCard.Body>
-                    Open your deployed services directly inside Exodus. See them
-                    running live before you make the switch.
-                  </GlassCard.Body>
+                  <GlassCard.Title>{t("feat6_title")}</GlassCard.Title>
+                  <GlassCard.Body>{t("feat6_body")}</GlassCard.Body>
                 </GlassCard>
               </div>
             </section>
@@ -2787,68 +3774,69 @@
             {/* ─── Pricing ─── */}
             <section className="max-w-[1100px] mx-auto px-6 py-20" id="pricing">
               <div className="text-center max-w-[720px] mx-auto mb-12 flex flex-col items-center gap-2">
-                <EyebrowPill icon={false}>Pricing</EyebrowPill>
+                <EyebrowPill icon={false}>{t("pricing_eyebrow")}</EyebrowPill>
                 <h2
                   className="font-bold leading-tight mt-3"
                   style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
                 >
-                  The software is free.{" "}
-                  <GradientText>We handle the rest.</GradientText>
+                  {tx("pricing_title", {
+                    grad: (
+                      <GradientText>{t("pricing_title_grad")}</GradientText>
+                    ),
+                  })}
                 </h2>
               </div>
 
               <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6 items-start">
                 <PricingCard>
-                  <PricingCard.Tier>DIY</PricingCard.Tier>
-                  <PricingCard.Amount>Free</PricingCard.Amount>
-                  <PricingCard.Blurb>
-                    Compose &amp; run your stack on your own machine, for free.
-                  </PricingCard.Blurb>
+                  <PricingCard.Tier>{t("price1_tier")}</PricingCard.Tier>
+                  <PricingCard.Amount>{t("price1_amount")}</PricingCard.Amount>
+                  <PricingCard.Blurb>{t("price1_blurb")}</PricingCard.Blurb>
                   <PricingCard.Features>
-                    <li>Agentic stack composer</li>
-                    <li>Download Docker Compose + .env</li>
-                    <li>Run on your own machine</li>
+                    <li>{t("price1_f1")}</li>
+                    <li>{t("price1_f2")}</li>
+                    <li>{t("price1_f3")}</li>
                   </PricingCard.Features>
-                  <PricingCard.CTA href="#picker">Get started</PricingCard.CTA>
+                  <PricingCard.CTA href="#picker">
+                    {t("get_started")}
+                  </PricingCard.CTA>
                 </PricingCard>
 
                 <PricingCard featured>
-                  <PricingCard.Flag hideSparkle>Try it live</PricingCard.Flag>
-                  <PricingCard.Tier>Hosted Cloud</PricingCard.Tier>
-                  <PricingCard.Amount unit="per stack, 5h sandbox">
+                  <PricingCard.Flag hideSparkle>
+                    {t("price2_flag")}
+                  </PricingCard.Flag>
+                  <PricingCard.Tier>{t("price2_tier")}</PricingCard.Tier>
+                  <PricingCard.Amount unit={t("price2_unit")}>
                     $1
                   </PricingCard.Amount>
-                  <PricingCard.Blurb>
-                    See your stack running live for 5 hours. Evaluate it, then
-                    self-host or upgrade.
-                  </PricingCard.Blurb>
+                  <PricingCard.Blurb>{t("price2_blurb")}</PricingCard.Blurb>
                   <PricingCard.Features>
-                    <li>One-click deploy to AWS</li>
-                    <li>HTTPS subdomain for 5 hours</li>
-                    <li>Export config before expiry</li>
+                    <li>{t("price2_f1")}</li>
+                    <li>{t("price2_f2")}</li>
+                    <li>{t("price2_f3")}</li>
                   </PricingCard.Features>
-                  <PricingCard.CTA href="#picker">Get started</PricingCard.CTA>
+                  <PricingCard.CTA href="#picker">
+                    {t("get_started")}
+                  </PricingCard.CTA>
                 </PricingCard>
 
                 <PricingCard>
                   <PricingCard.Flag hideSparkle>
-                    Lazy cost-cutting
+                    {t("price3_flag")}
                   </PricingCard.Flag>
-                  <PricingCard.Tier>Fully Managed</PricingCard.Tier>
-                  <PricingCard.Amount unit="per month, per server">
+                  <PricingCard.Tier>{t("price3_tier")}</PricingCard.Tier>
+                  <PricingCard.Amount unit={t("price3_unit")}>
                     $99
                   </PricingCard.Amount>
-                  <PricingCard.Blurb>
-                    We host and maintain your stack for you. Focus on your work,
-                    not server upkeep.
-                  </PricingCard.Blurb>
+                  <PricingCard.Blurb>{t("price3_blurb")}</PricingCard.Blurb>
                   <PricingCard.Features>
-                    <li>Everything in Hosted Cloud</li>
-                    <li>Managed updates, security &amp; uptime</li>
-                    <li>24/7 monitoring and support</li>
+                    <li>{t("price3_f1")}</li>
+                    <li>{t("price3_f2")}</li>
+                    <li>{t("price3_f3")}</li>
                   </PricingCard.Features>
                   <PricingCard.CTA href="mailto:arnaud@codename.co?subject=Exodus%20-%20Fully%20managed%20plan">
-                    Contact Us
+                    {t("contact_us")}
                   </PricingCard.CTA>
                 </PricingCard>
               </div>
@@ -2865,12 +3853,12 @@
                 className="font-bold leading-tight mt-3"
                 style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)" }}
               >
-                Own your tools.
+                {t("closer_1")}
                 <br />
-                <GradientText>Stop renting software.</GradientText>
+                <GradientText>{t("closer_2")}</GradientText>
               </h2>
               <Button variant="glow" size="lg" sparkle as="a" href="#picker">
-                Build my stack — free
+                {t("closer_cta")}
               </Button>
             </section>
 
@@ -2883,51 +3871,51 @@
                     <Sparkle static solid glyph="⏏" /> Exodus
                   </p>
                   <p className="text-sm text-[#5a5a66] m-0">
-                    Eject from SaaS. Own your stack.
+                    {t("footer_tagline")}
                   </p>
                 </div>
 
                 {/* Navigation column */}
                 <div className="flex flex-col gap-2">
                   <p className="text-sm font-bold text-[#e7e7ea] mb-1 uppercase tracking-wide">
-                    Product
+                    {t("footer_product")}
                   </p>
                   <a
                     href="#picker"
                     className="text-sm text-[#8a8a96] no-underline leading-loose"
                   >
-                    Build my stack
+                    {t("prompt_cta")}
                   </a>
                   <a
                     href="#how-it-works"
                     className="text-sm text-[#8a8a96] no-underline leading-loose"
                   >
-                    How it works
+                    {t("how_eyebrow")}
                   </a>
                   <a
                     href="#why"
                     className="text-sm text-[#8a8a96] no-underline leading-loose"
                   >
-                    Why self-host
+                    {t("why_eyebrow")}
                   </a>
                   <a
                     href="#features"
                     className="text-sm text-[#8a8a96] no-underline leading-loose"
                   >
-                    Features
+                    {t("feat_eyebrow")}
                   </a>
                   <a
                     href="#pricing"
                     className="text-sm text-[#8a8a96] no-underline leading-loose"
                   >
-                    Pricing
+                    {t("pricing_eyebrow")}
                   </a>
                 </div>
 
                 {/* Community column */}
                 <div className="flex flex-col gap-2">
                   <p className="text-sm font-bold text-[#e7e7ea] mb-1 uppercase tracking-wide">
-                    Community
+                    {t("footer_community")}
                   </p>
                   <a
                     href="https://github.com/arnaud/exodus"
@@ -2949,22 +3937,23 @@
                 <div className="flex flex-col gap-2">
                   <CommunityBadge
                     icon={siIcon("github")}
-                    title="Star us on GitHub"
+                    title={t("badge_star")}
                     href="https://github.com/arnaud/exodus"
                   />
                   <CommunityBadge
                     icon={siIcon("docker")}
-                    title={`${approxStackCount}+ alternatives`}
-                    subtitle={<>Tested &amp; ready to run</>}
+                    title={t("feat1_title", { count: approxStackCount })}
+                    subtitle={t("badge_tested")}
                     href="https://stack.lol"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-between items-center border-t border-white/[0.06] pt-6 text-sm text-[#5a5a66]">
+              <div className="flex justify-between items-center gap-4 border-t border-white/[0.06] pt-6 text-sm text-[#5a5a66]">
                 <span>© {new Date().getFullYear()} Exodus</span>
+                <LangSwitcher lang={lang} onChange={changeLang} />
                 <span className="text-sm text-[#5a5a66] m-0">
-                  Built at SuperAI NEXT Hackathon
+                  {t("footer_built")}
                 </span>
               </div>
             </footer>
@@ -2977,7 +3966,7 @@
                   if (!open) setDetailPopover(null);
                 }}
                 title={detailPopover.name}
-                closeLabel="Close"
+                closeLabel={t("close_label")}
                 closeOnEscape
                 closeOnBackdrop
               >
@@ -3012,7 +4001,7 @@
                     {servicePopover.name}
                   </>
                 }
-                closeLabel="Close"
+                closeLabel={t("close_label")}
                 closeOnEscape
                 closeOnBackdrop
               >
