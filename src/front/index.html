@@ -382,11 +382,6 @@
         return 80;
       };
 
-      // ─── Vercel AI Gateway (generative fallback) ────────────────────────
-      // The gateway has no CORS headers, so the browser can't call it
-      // directly — requests go through the Exodus API Lambda (/ai/chat),
-      // which holds the AI_GATEWAY_API_KEY server-side.
-
       /**
        * Ask an LLM (via the AI Gateway, proxied through the Exodus API) to
        * map free-form user text to known catalog slugs. Used only when
@@ -422,7 +417,11 @@
         const data = await r.json().catch(() => ({}));
         if (r.status === 501) throw new Error("AI not configured on server");
         if (!r.ok)
-          throw new Error(data.error?.message || data.error || `AI Gateway returned ${r.status}`);
+          throw new Error(
+            data.error?.message ||
+              data.error ||
+              `AI Gateway returned ${r.status}`,
+          );
         const content = data.choices?.[0]?.message?.content ?? "";
         const json = content.match(/\{[\s\S]*\}/);
         if (!json) throw new Error("unparsable AI response");
@@ -863,6 +862,28 @@
           );
         };
 
+        // ── AI recommendation multi-select handler ──
+        const handleRecommendToggle = (slug, stack) => {
+          setSelections((prev) => {
+            const next = { ...prev };
+            if (next[slug]?.recommended) {
+              delete next[slug];
+            } else {
+              next[slug] = { ...stack, recommended: true };
+            }
+            return next;
+          });
+        };
+
+        const handleRecommendConfirm = () => {
+          setPendingHITL((prev) => prev.filter((s) => s !== "_ai_recommend"));
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.type === "hitl-recommend" ? { ...m, thinking: false } : m,
+            ),
+          );
+        };
+
         // ── Watch for HITL completion → proceed to fetch ──
         useEffect(() => {
           if (phase === "hitl" && pendingHITL.length === 0) {
@@ -1051,7 +1072,7 @@
               clearInterval(poll);
               updateMsg(waitId, {
                 thinking: false,
-                text: "**Payment received** ✓ — deploying your stack now…",
+                text: "✔ **Payment received**",
               });
               addMsg({
                 role: "ai",
@@ -1076,26 +1097,26 @@
           // Tool: parse_image for each stack
           const stackPayload = [];
           for (const slug of slugs) {
-            const parseId = addMsg({
-              type: "tool-use",
-              tool: "parse_image",
-              input: slug,
-              thinking: true,
-            });
+            // const parseId = addMsg({
+            //   type: "tool-use",
+            //   tool: "parse_image",
+            //   input: slug,
+            //   thinking: true,
+            // });
             await delay(250);
 
             const compose = files[slug]?.compose || "";
             const image = parseComposeImage(compose);
             if (!image) {
-              updateMsg(parseId, { thinking: false, result: "no image found" });
+              // updateMsg(parseId, { thinking: false, result: "no image found" });
               continue;
             }
             const port = parseComposePort(compose);
             stackPayload.push({ name: slug, image, port });
-            updateMsg(parseId, {
-              thinking: false,
-              result: `${image} :${port}`,
-            });
+            // updateMsg(parseId, {
+            //   thinking: false,
+            //   result: `${image} :${port}`,
+            // });
           }
 
           if (!stackPayload.length) {
@@ -1252,6 +1273,9 @@
             }
           }
 
+          // Track OSS tools suggested by AI (recommendations, not "already owned")
+          const aiSuggestedOSS = new Set();
+
           if (uniqueMatched.length === 0 && uniqueOSS.length === 0) {
             // Pattern matching found nothing — escalate to generative AI
             updateMsg(identifyId, {
@@ -1280,6 +1304,7 @@
                 if (s && !seenOSSSlugs.has(s.slug) && !seenSlugs.has(s.slug)) {
                   seenOSSSlugs.add(s.slug);
                   uniqueOSS.push(s);
+                  aiSuggestedOSS.add(s.slug);
                 }
               }
               const aiNames = [
@@ -1326,24 +1351,69 @@
             });
           }
 
-          // ── Handle open-source tools first (already free!) ──
+          // ── Handle open-source tools ──
+          const newSelections = {};
+          const aiRecommendedList = [];
           for (const oss of uniqueOSS) {
+            if (aiSuggestedOSS.has(oss.slug)) {
+              aiRecommendedList.push(oss);
+            } else {
+              // User explicitly mentioned this OSS tool — "already open-source"
+              await delay(400);
+              const ossId = addMsg({
+                role: "ai",
+                agent: "Exodus",
+                type: "oss-already",
+                thinking: "checking…",
+                stack: oss,
+                replacesNames: (oss.alternativeTo ?? []).map(saasDisplayName),
+              });
+              await delay(400);
+              updateMsg(ossId, { thinking: false });
+            }
+          }
+
+          // Show AI-recommended OSS tools as a HITL choice
+          const newPendingHITL = [];
+          if (aiRecommendedList.length === 1) {
+            // Single recommendation — auto-select
+            const oss = aiRecommendedList[0];
+            newSelections[oss.slug] = { ...oss, recommended: true };
             await delay(400);
-            const ossId = addMsg({
+            const recId = addMsg({
               role: "ai",
               agent: "Exodus",
-              type: "oss-already",
-              thinking: "checking…",
+              type: "auto-select",
+              thinking: "selecting…",
+              saasSlug: oss.slug,
+              saasName: null,
               stack: oss,
-              replacesNames: (oss.alternativeTo ?? []).map(saasDisplayName),
+              isStrong: (oss.stars ?? 0) >= STRONG_THRESHOLD,
+              recommended: true,
             });
             await delay(400);
-            updateMsg(ossId, { thinking: false });
+            updateMsg(recId, { thinking: false });
+          } else if (aiRecommendedList.length > 1) {
+            // Multiple recommendations — let the user choose
+            await delay(400);
+            newPendingHITL.push("_ai_recommend");
+            addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "hitl-recommend",
+              thinking: "waiting for your choice…",
+              candidates: aiRecommendedList,
+            });
           }
 
           // ── Handle SaaS tools (need alternatives) ──
-          const newSelections = {};
-          const newPendingHITL = [];
+
+          // Collect OSS slugs already selected (AI recommendations) to avoid duplicates
+          const alreadySelectedSlugs = new Set(
+            Object.values(newSelections).map((s) => s.slug),
+          );
+          // Also include AI recommendation candidates (user may select them via HITL)
+          for (const c of aiRecommendedList) alreadySelectedSlugs.add(c.slug);
 
           for (const tool of uniqueMatched) {
             await delay(400);
@@ -1361,14 +1431,24 @@
               (c) => (c.stars ?? 0) >= STRONG_THRESHOLD,
             );
 
+            // Skip if the best alternative is already recommended by AI
+            const best = strongCandidates[0] || candidates[0];
+            if (best && alreadySelectedSlugs.has(best.slug)) {
+              updateMsg(matchId, {
+                thinking: false,
+                result: `${best.name} — already recommended`,
+              });
+              continue;
+            }
+
             if (candidates.length === 0) {
               updateMsg(matchId, {
                 thinking: false,
                 result: "no match in catalog",
               });
             } else if (strongCandidates.length <= 1) {
-              const best = strongCandidates[0] || candidates[0];
               newSelections[tool.slug] = best;
+              alreadySelectedSlugs.add(best.slug);
               updateMsg(matchId, {
                 thinking: false,
                 result: `${best.name} ★${((best.stars ?? 0) / 1000).toFixed(0)}k`,
@@ -1386,9 +1466,20 @@
               await delay(400);
               updateMsg(autoId, { thinking: false });
             } else {
+              // Filter out candidates already recommended by AI
+              const filteredCandidates = strongCandidates.filter(
+                (c) => !alreadySelectedSlugs.has(c.slug),
+              );
+              if (filteredCandidates.length === 0) {
+                updateMsg(matchId, {
+                  thinking: false,
+                  result: `${strongCandidates[0].name} — already recommended`,
+                });
+                continue;
+              }
               updateMsg(matchId, {
                 thinking: false,
-                result: `${strongCandidates.length} candidates — user decides`,
+                result: `${filteredCandidates.length} candidates — user decides`,
               });
               newPendingHITL.push(tool.slug);
               addMsg({
@@ -1398,7 +1489,7 @@
                 thinking: "waiting for your choice…",
                 saasSlug: tool.slug,
                 saasName: tool.name,
-                candidates: strongCandidates,
+                candidates: filteredCandidates,
               });
             }
           }
@@ -1602,7 +1693,14 @@
                   thinking={msg.thinking}
                 >
                   <p style={{ margin: "0 0 12px" }}>
-                    For replacing <strong>{msg.saasName}</strong>, I recommend:
+                    {msg.saasName ? (
+                      <>
+                        For replacing <strong>{msg.saasName}</strong>, I
+                        recommend:
+                      </>
+                    ) : (
+                      <>I recommend:</>
+                    )}
                   </p>
                   <GlassCard>
                     <GlassCard.Icon>
@@ -1671,8 +1769,14 @@
                       fontSize: "0.9rem",
                     }}
                   >
-                    ✓ Auto-selected{" "}
-                    {msg.isStrong ? "(top-rated)" : "(best available)"}
+                    {msg.recommended ? (
+                      "✓ Open-source and ready to deploy"
+                    ) : (
+                      <>
+                        ✓ Auto-selected{" "}
+                        {msg.isStrong ? "(top-rated)" : "(best available)"}
+                      </>
+                    )}
                   </p>
                 </ChatBubble>
               );
@@ -1738,8 +1842,15 @@
                             }}
                           >
                             <Button
-                              variant={isSelected ? "glow" : "shimmer"}
+                              variant={
+                                !msg.thinking
+                                  ? "ghost"
+                                  : isSelected
+                                    ? "glow"
+                                    : "shimmer"
+                              }
                               size="sm"
+                              disabled={!msg.thinking}
                               onClick={() => handleHITLSelect(msg.saasSlug, c)}
                             >
                               {isSelected ? "✓ Selected" : "Select"}
@@ -1790,6 +1901,144 @@
                 </ChatBubble>
               );
 
+            case "hitl-recommend":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  <p style={{ margin: "0 0 12px" }}>
+                    I found{" "}
+                    <GradientText>
+                      {msg.candidates.length} open-source tools
+                    </GradientText>{" "}
+                    that match your needs. Pick the ones you'd like to deploy:
+                  </p>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 mt-2">
+                    {msg.candidates.map((c) => {
+                      const isSelected = !!selections[c.slug]?.recommended;
+                      return (
+                        <div
+                          key={c.slug}
+                          className="rounded-xl p-4 transition-all duration-200 border"
+                          style={{
+                            borderColor: isSelected
+                              ? "color-mix(in srgb, var(--pui-grad-from) 50%, transparent)"
+                              : "rgba(255,255,255,0.08)",
+                            background: isSelected
+                              ? "color-mix(in srgb, var(--pui-grad-from) 8%, transparent)"
+                              : "rgba(255,255,255,0.03)",
+                          }}
+                        >
+                          <div className="flex justify-between items-center">
+                            <strong>{c.name}</strong>
+                            <span
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#a8a8b3",
+                              }}
+                            >
+                              ★ {(c.stars ?? 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <p
+                            style={{
+                              fontSize: "0.85rem",
+                              color: "#a8a8b3",
+                              margin: "4px 0 8px",
+                            }}
+                          >
+                            {c.description}
+                          </p>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Button
+                              variant={
+                                !msg.thinking
+                                  ? "ghost"
+                                  : isSelected
+                                    ? "glow"
+                                    : "shimmer"
+                              }
+                              size="sm"
+                              disabled={!msg.thinking}
+                              onClick={() => handleRecommendToggle(c.slug, c)}
+                            >
+                              {isSelected ? "✓ Selected" : "Select"}
+                            </Button>
+                            <button
+                              onClick={() =>
+                                setDetailPopover({
+                                  slug: c.slug,
+                                  name: c.name,
+                                  link: c.link,
+                                })
+                              }
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#8a8a96",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                textDecoration: "underline",
+                                textUnderlineOffset: "2px",
+                              }}
+                            >
+                              details ↗
+                            </button>
+                            <button
+                              onClick={() => handleWebSearch(c)}
+                              disabled={searchingSlugs.has(c.slug)}
+                              title="Search the web for more info"
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#8a8a96",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                textDecoration: "underline",
+                                textUnderlineOffset: "2px",
+                              }}
+                            >
+                              {searchingSlugs.has(c.slug) ? "more…" : "more"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {msg.thinking && (
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        marginTop: 16,
+                      }}
+                    >
+                      <Button
+                        variant="glow"
+                        size="sm"
+                        disabled={
+                          !Object.values(selections).some((s) => s.recommended)
+                        }
+                        onClick={handleRecommendConfirm}
+                      >
+                        Confirm selection
+                      </Button>
+                    </div>
+                  )}
+                </ChatBubble>
+              );
+
             case "recipe": {
               const ready = !msg.thinking;
               return (
@@ -1828,7 +2077,9 @@
                               {stack.name}
                             </span>
                             <span className="text-[#a8a8b3]">
-                              replaces {saasDisplayName(saasSlug)}
+                              {stack.recommended
+                                ? stack.description
+                                : `replaces ${saasDisplayName(saasSlug)}`}
                             </span>
                             {status === "live" && (
                               <button
@@ -1841,7 +2092,7 @@
                                 }
                                 className="text-xs text-cyan-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 font-mono text-right"
                               >
-                                Open →
+                                Open ↗
                               </button>
                             )}
                           </div>
@@ -1858,12 +2109,19 @@
                           justifyContent: "center",
                           marginTop: 20,
                           marginBottom: 8,
+                          gap: 16,
                         }}
                       >
                         <Button
+                          variant="ghost"
+                          loading={isRunning}
+                          onClick={() => handleRunAll(msg.allSelections)}
+                        >
+                          ▶ Run locally
+                        </Button>
+
+                        <Button
                           variant="glow"
-                          size="lg"
-                          sparkle
                           loading={isDeploying}
                           onClick={() =>
                             handlePayAndDeploy(msg.allSelections, msg.files)
@@ -1877,15 +2135,8 @@
                         </Button>
                       </div>
 
-                      <div className="flex justify-center items-center gap-1.5 flex-wrap">
-                        <button
-                          className="text-xs text-[#8a8a96] bg-transparent border-none cursor-pointer px-1.5 py-1 underline underline-offset-2 font-[inherit]"
-                          onClick={() => handleRunAll(msg.allSelections)}
-                        >
-                          {isRunning ? "Running…" : "▶ Run locally"}
-                        </button>
-                        <span className="text-white/15 text-[0.7rem]">·</span>
-                        <button
+                      {/* <div className="flex justify-center items-center gap-1.5 flex-wrap">*/}
+                      {/* <button
                           className="text-xs text-[#8a8a96] bg-transparent border-none cursor-pointer px-1.5 py-1 underline underline-offset-2 font-[inherit]"
                           onClick={() => downloadCompose(msg.files)}
                         >
@@ -1896,8 +2147,8 @@
                           onClick={() => downloadEnv(msg.files)}
                         >
                           ↓ .env
-                        </button>
-                      </div>
+                        </button>*/}
+                      {/* </div>*/}
                     </>
                   )}
                 </ChatBubble>
@@ -1972,7 +2223,7 @@
                                 }
                                 className="text-[0.75rem] text-cyan-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 font-mono text-right"
                               >
-                                Try it out →
+                                Open ↗
                               </button>
                             )}
                           </div>
@@ -2097,6 +2348,15 @@
                                       window.open(d.url, "_blank");
                                     }
                                   }}
+                                >
+                                  Preview {d.name} ↗
+                                </Button>
+                                <Button
+                                  variant="glow"
+                                  size="sm"
+                                  as="a"
+                                  href={d.url}
+                                  target="_blank"
                                 >
                                   Open {d.name} →
                                 </Button>
