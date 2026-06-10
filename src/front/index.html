@@ -11,7 +11,7 @@
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh;
         style-src 'self' 'unsafe-inline' https://esm.sh;
-        connect-src 'self' http://localhost:* http://127.0.0.1:* https://127.0.0.1:* https://esm.sh https://ai-gateway.vercel.sh https://raw.githubusercontent.com https://stack.lol https://d6lzsqpg2b.execute-api.us-west-2.amazonaws.com;
+        connect-src 'self' http://localhost:* http://127.0.0.1:* https://127.0.0.1:* https://esm.sh https://ai-gateway.vercel.sh https://raw.githubusercontent.com https://stack.lol https://api.exa.ai https://d6lzsqpg2b.execute-api.us-west-2.amazonaws.com;
         frame-src https://stack.lol https://*.stack.localhost https://*.stack.lol;
         img-src 'self' data: blob: https://esm.sh;
       "
@@ -165,6 +165,8 @@
       const STRIPE_PAYMENT_LINK =
         "https://buy.stripe.com/test_bJe6oH83g7xCaYdbdUew801";
 
+      const EXA_API = "https://api.exa.ai";
+
       const SANDBOX_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours in ms
 
       // ─── Countdown Hook & Badge ──────────────────────────────────────
@@ -272,6 +274,11 @@
           icon: "📚",
           description: "Search catalog for open-source replacements",
         },
+        exa_search: {
+          label: "Search the web",
+          icon: "🌐",
+          description: "Search supplemental info about a tool via Exa",
+        },
         fetch_compose: {
           label: "Fetch the compose file",
           icon: "📦",
@@ -348,6 +355,45 @@
         if (standalone) return parseInt(standalone[1]);
         return 80;
       };
+
+      // ─── Exa Web Search ─────────────────────────────────────────────────
+
+      function getExaApiKey() {
+        let key = localStorage.getItem("EXA_API_KEY");
+        if (!key) {
+          key = window.prompt(
+            "Enter your Exa API key to enable web search (get one at https://dashboard.exa.ai):",
+          );
+          if (key) localStorage.setItem("EXA_API_KEY", key.trim());
+        }
+        return key?.trim() || null;
+      }
+
+      /**
+       * Search the web via Exa for supplemental info about a tool/stack.
+       * Returns an array of { title, url, publishedDate, text } results.
+       */
+      async function exaSearch(query, numResults = 4) {
+        const key = getExaApiKey();
+        if (!key) throw new Error("no API key provided");
+        const r = await fetch(`${EXA_API}/search`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": key },
+          body: JSON.stringify({
+            query,
+            type: "auto",
+            numResults,
+            contents: { text: { maxCharacters: 280 } },
+          }),
+        });
+        if (r.status === 401 || r.status === 403) {
+          localStorage.removeItem("EXA_API_KEY");
+          throw new Error("invalid API key");
+        }
+        if (!r.ok) throw new Error(`Exa API returned ${r.status}`);
+        const data = await r.json();
+        return data.results ?? [];
+      }
 
       // ─── Stack Desktop API ──────────────────────────────────────────────
 
@@ -592,7 +638,7 @@
       function App() {
         // Catalog state
         const [stacks, setStacks] = useState([]);
-        const approxStackCount = parseInt(Math.floor(stacks.length / 10)) * 10;
+        const approxStackCount = 10 * Math.floor(stacks.length / 10) || 200;
         const [catalog, setCatalog] = useState([]);
 
         // AI model state
@@ -610,6 +656,7 @@
         const [runProgress, setRunProgress] = useState({}); // slug → 'pending'|'running'|'live'|'error'
         const [isRunning, setIsRunning] = useState(false);
         const [isDeploying, setIsDeploying] = useState(false);
+        const [searchingSlugs, setSearchingSlugs] = useState(new Set()); // slugs with an Exa search in flight
         const [sandboxExpiresAt, setSandboxExpiresAt] = useState(null);
 
         // Refs for async flow
@@ -687,6 +734,46 @@
               ),
             )
             .sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0));
+        };
+
+        // ── Exa web search: supplemental info about a tool/stack ──
+        const handleWebSearch = async (stack) => {
+          if (searchingSlugs.has(stack.slug)) return;
+          setSearchingSlugs((prev) => new Set(prev).add(stack.slug));
+          const toolId = addMsg({
+            type: "tool-use",
+            tool: "exa_search",
+            input: stack.name,
+            thinking: true,
+          });
+          try {
+            const results = await exaSearch(
+              `${stack.name} open-source self-hosted review`,
+            );
+            updateMsg(toolId, {
+              thinking: false,
+              result: `${results.length} result${results.length === 1 ? "" : "s"}`,
+            });
+            addMsg({
+              role: "ai",
+              agent: "Exodus",
+              type: "web-results",
+              thinking: false,
+              stackName: stack.name,
+              results,
+            });
+          } catch (e) {
+            updateMsg(toolId, {
+              thinking: false,
+              result: `error: ${e.message}`,
+            });
+          } finally {
+            setSearchingSlugs((prev) => {
+              const next = new Set(prev);
+              next.delete(stack.slug);
+              return next;
+            });
+          }
         };
 
         // ── HITL selection handler ──
@@ -1329,6 +1416,66 @@
                 </ChatBubble>
               );
 
+            case "web-results":
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role="ai"
+                  agent="Exodus"
+                  thinking={msg.thinking}
+                >
+                  <p style={{ margin: "0 0 12px" }}>
+                    Here's what the web says about{" "}
+                    <strong>{msg.stackName}</strong>:
+                  </p>
+                  {msg.results.length === 0 ? (
+                    <p style={{ margin: 0, color: "#a8a8b3" }}>
+                      No relevant results found.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {msg.results.map((r) => (
+                        <a
+                          key={r.url}
+                          href={r.url}
+                          target="_blank"
+                          rel="noopener"
+                          className="block px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] no-underline transition-colors hover:bg-white/[0.06]"
+                        >
+                          <div className="flex items-baseline gap-2">
+                            <strong className="text-[#e7e7ea] text-sm">
+                              {r.title || r.url}
+                            </strong>
+                            <span className="text-xs text-[#8a8a96] font-mono shrink-0 ml-auto">
+                              {(() => {
+                                try {
+                                  return new URL(r.url).hostname.replace(
+                                    /^www\./,
+                                    "",
+                                  );
+                                } catch {
+                                  return "";
+                                }
+                              })()}
+                            </span>
+                          </div>
+                          {r.text && (
+                            <p className="text-[0.8rem] text-[#a8a8b3] m-0 mt-1">
+                              {r.text.length > 220
+                                ? r.text.slice(0, 217) + "…"
+                                : r.text}
+                            </p>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[0.7rem] text-[#5a5a66] m-0 mt-2">
+                    Powered by Exa
+                  </p>
+                </ChatBubble>
+              );
+
             case "auto-select":
               return (
                 <ChatBubble
@@ -1356,28 +1503,49 @@
                         {msg.stack.license}
                       </span>
                     </GlassCard.Body>
-                    <button
-                      onClick={() =>
-                        setDetailPopover({
-                          slug: msg.stack.slug,
-                          name: msg.stack.name,
-                          link: msg.stack.link,
-                        })
-                      }
-                      style={{
-                        fontSize: "0.85rem",
-                        color: "#8a8a96",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "4px 0 0",
-                        textDecoration: "underline",
-                        textUnderlineOffset: "2px",
-                        textAlign: "left",
-                      }}
-                    >
-                      View on stack.lol →
-                    </button>
+                    <div style={{ display: "flex", gap: 16 }}>
+                      <button
+                        onClick={() =>
+                          setDetailPopover({
+                            slug: msg.stack.slug,
+                            name: msg.stack.name,
+                            link: msg.stack.link,
+                          })
+                        }
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#8a8a96",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px 0 0",
+                          textDecoration: "underline",
+                          textUnderlineOffset: "2px",
+                          textAlign: "left",
+                        }}
+                      >
+                        View on stack.lol →
+                      </button>
+                      <button
+                        onClick={() => handleWebSearch(msg.stack)}
+                        disabled={searchingSlugs.has(msg.stack.slug)}
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#8a8a96",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px 0 0",
+                          textDecoration: "underline",
+                          textUnderlineOffset: "2px",
+                          textAlign: "left",
+                        }}
+                      >
+                        {searchingSlugs.has(msg.stack.slug)
+                          ? "🌐 searching…"
+                          : "🌐 Search the web"}
+                      </button>
+                    </div>
                   </GlassCard>
                   <p
                     style={{
@@ -1453,7 +1621,7 @@
                             }}
                           >
                             <Button
-                              variant={isSelected ? "glow" : "ghost"}
+                              variant={isSelected ? "glow" : "shimmer"}
                               size="sm"
                               onClick={() => handleHITLSelect(msg.saasSlug, c)}
                             >
@@ -1478,7 +1646,24 @@
                                 textUnderlineOffset: "2px",
                               }}
                             >
-                              details →
+                              details ↗
+                            </button>
+                            <button
+                              onClick={() => handleWebSearch(c)}
+                              disabled={searchingSlugs.has(c.slug)}
+                              title="Search the web for more info"
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#8a8a96",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                textDecoration: "underline",
+                                textUnderlineOffset: "2px",
+                              }}
+                            >
+                              {searchingSlugs.has(c.slug) ? "more…" : "more"}
                             </button>
                           </div>
                         </div>
@@ -2084,8 +2269,9 @@
                   <GlassCard.Title>Name your tools</GlassCard.Title>
                   <GlassCard.Body>
                     Type the SaaS your team uses — Notion, Slack, Jira, Datadog,
-                    whatever. Exodus recognizes {catalog.length || "200"}+
-                    products instantly.
+                    whatever. Exodus recognizes{" "}
+                    {10 * Math.floor(catalog.length / 10) || "100"}+ products
+                    instantly.
                   </GlassCard.Body>
                   <GlassCard.Link href="#picker">Try it now</GlassCard.Link>
                 </GlassCard>
@@ -2132,7 +2318,7 @@
                     <SiImg name="apachearrow" className="w-5" />
                   </GlassCard.Icon>
                   <GlassCard.Title>
-                    {approxStackCount || "200"}+ alternatives
+                    {approxStackCount}+ alternatives
                   </GlassCard.Title>
                   <GlassCard.Body>
                     A curated catalog of open-source tools mapped to the SaaS
@@ -2367,7 +2553,7 @@
                   />
                   <CommunityBadge
                     icon={siIcon("docker")}
-                    title={`${approxStackCount || "…"}+ alternatives`}
+                    title={`${approxStackCount}+ alternatives`}
                     subtitle={<>Tested &amp; ready to run</>}
                     href="https://stack.lol"
                   />
