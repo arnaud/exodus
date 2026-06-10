@@ -96,6 +96,7 @@ export const handler = async (event) => {
     if (method === "POST" && path === "/deploy") return await deploy(JSON.parse(event.body));
     if (method === "POST" && path === "/teardown") return await teardown();
     if (method === "GET" && path === "/status") return await status();
+    if (method === "POST" && path === "/ai/chat") return await aiChat(JSON.parse(event.body));
     return respond(404, { error: "Not found" });
   } catch (e) {
     console.error(e);
@@ -216,6 +217,33 @@ async function deploy({ stacks }) {
   }
 
   return respond(200, { deployments: results });
+}
+
+// --- POST /ai/chat (proxy to Vercel AI Gateway — it has no CORS, browsers can't call it) ---
+
+const AI_GATEWAY = "https://ai-gateway.vercel.sh";
+
+async function aiChat({ model, messages, max_tokens } = {}) {
+  const key = process.env.AI_GATEWAY_API_KEY;
+  if (!key)
+    return respond(501, { error: "AI_GATEWAY_API_KEY is not configured on the server" });
+  if (!model || !Array.isArray(messages) || !messages.length)
+    return respond(400, { error: "model and messages[] are required" });
+
+  const r = await fetch(`${AI_GATEWAY}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: Math.min(Number(max_tokens) || 300, 1000),
+    }),
+  });
+  const data = await r.json().catch(() => ({ error: "Invalid gateway response" }));
+  return respond(r.status, data);
 }
 
 // --- POST /teardown (called by EventBridge on schedule) ---

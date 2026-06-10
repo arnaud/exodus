@@ -254,11 +254,11 @@
         "perplexity",
       ]);
 
+      // AI Gateway model slugs use dots for versions, not hyphens
       const AI_MODELS = [
-        "anthropic/claude-sonnet-4-6",
-        "anthropic/claude-haiku-4-5",
+        "anthropic/claude-haiku-4.5",
+        "anthropic/claude-sonnet-4.6",
         "google/gemini-2.5-pro",
-        "google/gemini-3.5-flash",
       ];
 
       // ─── Agent Tools ────────────────────────────────────────────────────
@@ -268,6 +268,12 @@
           label: "Identify tools",
           icon: "🔍",
           description: "Parse input and identify SaaS & open-source products",
+        },
+        ai_match: {
+          label: "Ask AI",
+          icon: "✨",
+          description:
+            "Generative AI maps free-form input to catalog tools when pattern matching fails",
         },
         match_alternative: {
           label: "Look for alternatives",
@@ -306,6 +312,26 @@
       const delay = (ms) => new Promise((r) => setTimeout(r, ms));
       let _msgSeq = 0;
       const msgId = () => `m-${++_msgSeq}-${Date.now()}`;
+
+      // Whole-word term matching: "dash" must not match inside "dashboards"
+      const isWordChar = (ch) => /[a-z0-9]/i.test(ch ?? "");
+
+      const findTermRanges = (lowerText, term) => {
+        const ranges = [];
+        let i = 0;
+        while ((i = lowerText.indexOf(term, i)) !== -1) {
+          const before = lowerText[i - 1];
+          const after = lowerText[i + term.length];
+          if (!isWordChar(before) && !isWordChar(after)) {
+            ranges.push([i, i + term.length]);
+          }
+          i += term.length;
+        }
+        return ranges;
+      };
+
+      const hasWholeWord = (lowerText, term) =>
+        findTermRanges(lowerText, term).length > 0;
 
       const saasDisplayName = (slug) =>
         SAAS_NAMES[slug] ??
@@ -355,6 +381,57 @@
         if (standalone) return parseInt(standalone[1]);
         return 80;
       };
+
+      // ─── Vercel AI Gateway (generative fallback) ────────────────────────
+      // The gateway has no CORS headers, so the browser can't call it
+      // directly — requests go through the Exodus API Lambda (/ai/chat),
+      // which holds the AI_GATEWAY_API_KEY server-side.
+
+      /**
+       * Ask an LLM (via the AI Gateway, proxied through the Exodus API) to
+       * map free-form user text to known catalog slugs. Used only when
+       * simple pattern matching finds nothing. Returns { saas: [], oss: [] }.
+       */
+      async function aiIdentifyTools(text, saasCatalog, ossStacks) {
+        const saasList = saasCatalog
+          .map((t) => `${t.slug} (${t.name})`)
+          .join(", ");
+        const ossList = ossStacks.map((s) => s.slug).join(", ");
+
+        const r = await fetch(`${EXODUS_API}/ai/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: AI_MODELS[0],
+            max_tokens: 300,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You map a user's description of the software they use — or the problems they want to solve — to known catalog slugs.\n\n" +
+                  `Valid SaaS slugs: ${saasList}\n\n` +
+                  `Valid open-source slugs: ${ossList}\n\n` +
+                  'Reply with JSON only, no prose: {"saas": ["slug", …], "oss": ["slug", …]}. ' +
+                  "Only include slugs from the lists above that clearly match tools the user names (even with typos) or describes by function. " +
+                  'If nothing matches, reply {"saas": [], "oss": []}.',
+              },
+              { role: "user", content: text },
+            ],
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 501) throw new Error("AI not configured on server");
+        if (!r.ok)
+          throw new Error(data.error?.message || data.error || `AI Gateway returned ${r.status}`);
+        const content = data.choices?.[0]?.message?.content ?? "";
+        const json = content.match(/\{[\s\S]*\}/);
+        if (!json) throw new Error("unparsable AI response");
+        const parsed = JSON.parse(json[0]);
+        return {
+          saas: Array.isArray(parsed.saas) ? parsed.saas : [],
+          oss: Array.isArray(parsed.oss) ? parsed.oss : [],
+        };
+      }
 
       // ─── Exa Web Search ─────────────────────────────────────────────────
 
@@ -489,11 +566,7 @@
             const lower = text.toLowerCase();
             const ranges = [];
             for (const term of terms) {
-              let i = 0;
-              while ((i = lower.indexOf(term, i)) !== -1) {
-                ranges.push([i, i + term.length]);
-                i += term.length;
-              }
+              ranges.push(...findTermRanges(lower, term));
             }
             if (!ranges.length) return esc(text);
             ranges.sort((a, b) => a[0] - b[0]);
@@ -710,8 +783,8 @@
           const lower = text.toLowerCase();
           return catalog.filter(
             (t) =>
-              lower.includes(t.name.toLowerCase()) ||
-              lower.includes(t.slug.toLowerCase()),
+              hasWholeWord(lower, t.name.toLowerCase()) ||
+              hasWholeWord(lower, t.slug.toLowerCase()),
           );
         };
 
@@ -720,8 +793,8 @@
           const lower = text.toLowerCase();
           return stacks.filter(
             (s) =>
-              lower.includes(s.name.toLowerCase()) ||
-              lower.includes(s.slug.toLowerCase()),
+              hasWholeWord(lower, s.name.toLowerCase()) ||
+              hasWholeWord(lower, s.slug.toLowerCase()),
           );
         };
 
@@ -1180,34 +1253,78 @@
           }
 
           if (uniqueMatched.length === 0 && uniqueOSS.length === 0) {
+            // Pattern matching found nothing — escalate to generative AI
             updateMsg(identifyId, {
               thinking: false,
-              result: "no tools found",
+              result: "no exact match — asking AI",
             });
-            addMsg({
-              role: "ai",
-              agent: "Exodus",
-              type: "text",
-              thinking: false,
-              text: 'I couldn\'t identify any tools in your message. Try mentioning specific tools — for example: "We use Notion, Slack, and Grafana" or "Datadog, GitHub, GitLab".',
-            });
-            setPhase("idle");
-            return;
-          }
 
-          const identifyParts = [];
-          if (uniqueMatched.length)
-            identifyParts.push(`${uniqueMatched.length} SaaS`);
-          if (uniqueOSS.length)
-            identifyParts.push(`${uniqueOSS.length} open-source`);
-          const allNames = [
-            ...uniqueMatched.map((t) => t.name),
-            ...uniqueOSS.map((s) => s.name),
-          ];
-          updateMsg(identifyId, {
-            thinking: false,
-            result: `${identifyParts.join(" + ")} — ${allNames.join(", ")}`,
-          });
+            const aiId = addMsg({
+              type: "tool-use",
+              tool: "ai_match",
+              input: text.length > 40 ? text.slice(0, 37) + "…" : text,
+              thinking: true,
+            });
+
+            try {
+              const ai = await aiIdentifyTools(text, catalog, stacks);
+              for (const slug of ai.saas) {
+                const t = catalog.find((c) => c.slug === slug);
+                if (t && !seenSlugs.has(t.slug)) {
+                  seenSlugs.add(t.slug);
+                  uniqueMatched.push(t);
+                }
+              }
+              for (const slug of ai.oss) {
+                const s = stacks.find((st) => st.slug === slug);
+                if (s && !seenOSSSlugs.has(s.slug) && !seenSlugs.has(s.slug)) {
+                  seenOSSSlugs.add(s.slug);
+                  uniqueOSS.push(s);
+                }
+              }
+              const aiNames = [
+                ...uniqueMatched.map((t) => t.name),
+                ...uniqueOSS.map((s) => s.name),
+              ];
+              updateMsg(aiId, {
+                thinking: false,
+                result: aiNames.length
+                  ? aiNames.join(", ")
+                  : "no tools identified",
+              });
+            } catch (e) {
+              updateMsg(aiId, {
+                thinking: false,
+                result: `error: ${e.message}`,
+              });
+            }
+
+            if (uniqueMatched.length === 0 && uniqueOSS.length === 0) {
+              addMsg({
+                role: "ai",
+                agent: "Exodus",
+                type: "text",
+                thinking: false,
+                text: 'I couldn\'t identify any tools in your message — even with AI assistance. Try mentioning specific tools — for example: "We use Notion, Slack, and Grafana" or "Datadog, GitHub, GitLab".',
+              });
+              setPhase("idle");
+              return;
+            }
+          } else {
+            const identifyParts = [];
+            if (uniqueMatched.length)
+              identifyParts.push(`${uniqueMatched.length} SaaS`);
+            if (uniqueOSS.length)
+              identifyParts.push(`${uniqueOSS.length} open-source`);
+            const allNames = [
+              ...uniqueMatched.map((t) => t.name),
+              ...uniqueOSS.map((s) => s.name),
+            ];
+            updateMsg(identifyId, {
+              thinking: false,
+              result: `${identifyParts.join(" + ")} — ${allNames.join(", ")}`,
+            });
+          }
 
           // ── Handle open-source tools first (already free!) ──
           for (const oss of uniqueOSS) {
