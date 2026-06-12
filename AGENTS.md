@@ -11,7 +11,7 @@ Live: [exodus.stack.lol](https://exodus.stack.lol)
 ## Architecture
 
 ```
-Browser (single HTML file on Vercel)
+Browser (static frontend on Vercel)
   ├── Agent loop (deterministic, no LLM by default)
   │   ├── 🔍 Scout        — identify tools (whole-word match → AI escalation)
   │   ├── 📚 Matchmaker    — rank OSS alternatives (auto-select vs HITL)
@@ -40,7 +40,9 @@ The agent loop runs **entirely in the browser** — no backend for the core flow
 ```
 src/
 ├── front/
-│   ├── index.html          ← THE app. Single-file React 19 SPA
+│   ├── index.html          ← entry point: head, SEO/CSP meta, import map, script tags
+│   ├── app.tsx             ← THE app. React 19 SPA, transpiled in-browser by Babel
+│   ├── locales.json        ← non-English i18n catalog (fetched by app.tsx before mount)
 │   └── stacks.json         ← cached catalog (fetched at build, empty = fetch at runtime)
 ├── aws/
 │   ├── lambda/
@@ -61,17 +63,21 @@ docs/
 └── deploy.yml              ← push to main → GitHub Pages deploy
 ```
 
-### The Single-File Frontend
+### The Buildless Frontend
 
-`src/front/index.html` is the entire application — **no build step, no bundler**:
+The frontend is three static files — **no build step, no bundler**:
+
+- `index.html` — head (SEO, CSP, import map, styles) + script tags, nothing else
+- `app.tsx` — the entire application: components, agent logic, English i18n strings (the fallback locale), tool definitions, state machine. Loaded via `<script type="text/babel" src="app.tsx">` and transpiled in-browser by Babel Standalone
+- `locales.json` — the 21 non-English locales, pure data; app.tsx fetches and merges it into `I18N` before mounting
+
+Shared plumbing:
 
 - **React 19 + ReactDOM** via `esm.sh` import maps
 - **Babel Standalone** for in-browser TypeScript + JSX transpilation
 - **Tailwind CSS v4** via CDN
 - **PerformativeUI** components (chat bubbles, tool traces, status dots, etc.)
 - **CSP header** locks down network access to known origins
-
-Everything — components, agent logic, i18n strings, tool definitions, state machine — lives in this one file. An extremely portable approach with no build step whatsoever.
 
 ---
 
@@ -120,7 +126,7 @@ Lowercase, alphanumeric + hyphens, max 30 chars, random suffix for multi-tenant 
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Single HTML file · React 19 · ReactDOM (esm.sh CDN) |
+| Frontend | Static HTML + in-browser TSX · React 19 · ReactDOM (esm.sh CDN) |
 | Transpilation | Babel Standalone (in-browser TSX) |
 | Styling | Tailwind CSS v4 (CDN) |
 | UI Components | [PerformativeUI](https://github.com/vorpus/performativeUI) |
@@ -141,7 +147,7 @@ Lowercase, alphanumeric + hyphens, max 30 chars, random suffix for multi-tenant 
 
 ### Run locally
 
-The frontend is a single HTML file — just open it or serve it:
+The frontend is plain static files — just serve them:
 
 ```bash
 # Any static server works
@@ -178,7 +184,7 @@ cp config.env.sample config.env   # fill in values
 
 ## Important Constraints
 
-1. **Single-file architecture** — All frontend code lives in `src/front/index.html`. Do not split into modules. The import map + Babel Standalone approach means no bundler, no node_modules, no build step.
+1. **Buildless architecture** — The frontend is three static files: `index.html` (entry/head), `app.tsx` (all application code), `locales.json` (non-English strings, data only). No bundler, no node_modules, no build step — Babel Standalone transpiles `app.tsx` in the browser. Keep all application logic in `app.tsx`; don't add more script files (Babel `text/babel` scripts can't import each other as ES modules).
 
 2. **Deterministic-first, AI-assisted** — The core loop uses catalog lookup + star thresholds for speed and reliability. The Vercel AI Gateway (proxied through Lambda at `POST /ai/chat`) fills the gaps — fuzzy input, descriptions-by-function, misspellings. Both paths are load-bearing; don't remove either.
 
@@ -186,7 +192,7 @@ cp config.env.sample config.env   # fill in values
 
 4. **Browser-only agent loop** — The conversation state machine (`idle → analyzing → hitl → fetching → done`) runs entirely client-side. The Lambda is only called for deploy/status/teardown and AI proxy.
 
-5. **i18n** — All user-facing strings are in the `I18N` object (17 languages). New text must be added to all language keys. The `en` locale is the source of truth.
+5. **i18n** — All user-facing strings go through the `I18N` object (22 languages). The `en` locale lives in `app.tsx` (source of truth and fallback if `locales.json` fails to load); the other 21 live in `locales.json`, fetched and merged before mount. New text must be added to all language keys.
 
 6. **5-hour sandbox TTL** — Deployed services are tagged with `exodus:expiresAt` and automatically torn down by EventBridge. This is intentional — it bounds infrastructure cost and creates an upgrade path.
 
